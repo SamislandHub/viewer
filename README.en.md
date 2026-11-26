@@ -6,9 +6,11 @@ A simple Agent browser. Web pages run in independent `WebContentsView` instances
 
 ## Screenshots
 
-![Viewer main window: tabs, web area and tool panel](docs/screenshots/01-browser.png)
+![Viewer main window: new toolbar, vertical tabs and web area](docs/screenshots/01-browser.png)
 
-![Interaction test page: web area and tool panel](docs/screenshots/02-test-page.png)
+![Built-in history page](docs/screenshots/02-history.png)
+
+![Virtual console: virtual mouse, virtual keyboard and resource analysis](docs/screenshots/03-console.png)
 
 ## Features
 

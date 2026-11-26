@@ -6,9 +6,11 @@
 
 ## 截图
 
-![Viewer 主界面：标签页与网页区](docs/screenshots/01-browser.png)
+![Viewer 主界面：新工具栏、垂直标签与网页区](docs/screenshots/01-browser.png)
 
-![交互测试页](docs/screenshots/02-test-page.png)
+![内置历史记录页](docs/screenshots/02-history.png)
+
+![虚拟控制台：虚拟鼠标、虚拟键盘与资源分析](docs/screenshots/03-console.png)
 
 ## 功能
 
