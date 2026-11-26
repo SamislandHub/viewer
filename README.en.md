@@ -1,8 +1,14 @@
 # Viewer
 
-Viewer is a custom Electron browser for internal testing of systems you own. Its chrome is fully self-drawn and web pages run in independent `WebContentsView` instances. A virtual mouse and keyboard drive pages through Chromium's trusted input pipeline — the real OS cursor never moves, and no JavaScript is injected into the page.
+A simple Agent browser. Web pages run in independent `WebContentsView` instances; a virtual mouse and keyboard drive pages through Chromium's trusted input pipeline — the real OS cursor never moves, and no JavaScript is injected into the page.
 
 [中文 README](README.md) · [Design notes](docs/DESIGN.md)
+
+## Screenshots
+
+![Viewer main window: tabs, web area and tool panel](docs/screenshots/01-browser.png)
+
+![In-app file picker](docs/screenshots/02-file-picker.png)
 
 ## Features
 

@@ -1,8 +1,14 @@
 # Viewer
 
-一个基于 Electron 的自定义浏览器，用于自有系统的内部测试。界面全部自绘，网页运行在独立的 `WebContentsView` 中；虚拟鼠标与虚拟键盘通过 Chromium 的可信输入管线操作页面，不移动真实系统光标，也不向页面注入 JavaScript。
+一个简单的 Agent 浏览器，网页运行在独立的 `WebContentsView` 中；支持虚拟鼠标与虚拟键盘，通过 Chromium 的可信输入管线操作页面，不移动真实系统光标，也不向页面注入 JavaScript。
 
 [English README](README.en.md) · [设计文档](docs/DESIGN.md)
+
+## 截图
+
+![Viewer 主界面：标签页、网页区与右侧工具面板](docs/screenshots/01-browser.png)
+
+![应用内文件选择器](docs/screenshots/02-file-picker.png)
 
 ## 功能
 

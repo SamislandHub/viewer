@@ -3,7 +3,7 @@
   "productName": "Viewer",
   "version": "0.1.0",
   "private": true,
-  "description": "Custom Electron browser with virtual mouse and keyboard",
+  "description": "A simple Agent browser with virtual mouse and keyboard",
   "license": "MIT",
   "repository": {
     "type": "git",
