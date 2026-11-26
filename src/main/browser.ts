@@ -1,23 +1,60 @@
 import { BrowserWindow, WebContentsView, type WebContents } from 'electron'
 import { join } from 'node:path'
 import type { Point, Rect } from '@shared/types'
-import { FileChooserBridge, type FileChooserRequest } from './dialog-bridge'
+import { FileChooserBridge, type FileChooserRequest, type InspectedElement } from './dialog-bridge'
+import { applyClientHints } from './fingerprint'
 
 /** Layout of the shell window; tabs are vertical on the left, toolbar is one row. */
 export const TITLEBAR_HEIGHT = 48
-export const LEFT_PANEL_WIDTH = 210
-export const RIGHT_PANEL_WIDTH = 300
+/** Width of the left tab strip. Updated by the collapse/expand control. */
+export let LEFT_PANEL_WIDTH = 210
+/** Input controls now live in their own window, so the page uses full width. */
+export const RIGHT_PANEL_WIDTH = 0
+
+function isInternalUrl(url: string): boolean {
+  return url === 'viewer://settings' || url === 'viewer://home'
+    || url === 'viewer://bookmarks' || url === 'viewer://history'
+    || url === 'viewer://downloads'
+}
+
+function internalFile(url: string): string | null {
+  if (url === 'viewer://settings') return join(__dirname, '../renderer/settings.html')
+  if (url === 'viewer://home') return join(__dirname, '../renderer/home.html')
+  if (url === 'viewer://bookmarks') return join(__dirname, '../renderer/bookmarks.html')
+  if (url === 'viewer://history') return join(__dirname, '../renderer/history.html')
+  if (url === 'viewer://downloads') return join(__dirname, '../renderer/downloads.html')
+  return null
+}
+
+function internalUrlFromFile(fileUrl: string): string | null {
+  if (fileUrl.endsWith('/settings.html')) return 'viewer://settings'
+  if (fileUrl.endsWith('/home.html')) return 'viewer://home'
+  if (fileUrl.endsWith('/bookmarks.html')) return 'viewer://bookmarks'
+  if (fileUrl.endsWith('/history.html')) return 'viewer://history'
+  if (fileUrl.endsWith('/downloads.html')) return 'viewer://downloads'
+  return null
+}
+
+function internalTitle(url: string): string | null {
+  if (url === 'viewer://settings') return '设置'
+  if (url === 'viewer://home') return '主页'
+  if (url === 'viewer://bookmarks') return '收藏夹'
+  if (url === 'viewer://history') return '历史记录'
+  if (url === 'viewer://downloads') return '下载管理'
+  return null
+}
 
 export interface TabInfo {
   id: number
   title: string
   url: string
   loading: boolean
+  favicon: string
 }
 
 /** Lightweight new-tab page so the middle slot never appears black. */
 const NEW_TAB_URL = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doctype html>
-<html><head><meta charset="utf-8"><style>
+<html><head><meta charset="utf-8"><title>新标签页</title><style>
   html,body{margin:0;height:100%;background:#ffffff;font-family:ui-sans-serif,system-ui,"Microsoft YaHei",sans-serif}
   .box{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#adb5bd;gap:8px}
   .box b{font-size:22px;color:#868e96;font-weight:500}
@@ -29,7 +66,7 @@ const CURSOR_PAGE = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doct
 <html><head><meta charset="utf-8"><style>
   html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden;
     font:13px/1.6 ui-sans-serif,system-ui,"Microsoft YaHei",sans-serif;color:#212529}
-  #cursor{position:absolute;left:0;top:0;width:16px;height:21px;pointer-events:none;
+  #cursor{position:absolute;left:0;top:0;width:16px;height:21px;pointer-events:none;opacity:0;
     filter:drop-shadow(0 1px 1px rgba(0,0,0,.55))}
   #cursor::before{content:"";position:absolute;inset:0;background:#ff9500;
     clip-path:polygon(0 0,0 82%,22% 62%,38% 100%,52% 94%,36% 57%,68% 55%)}
@@ -48,10 +85,28 @@ const CURSOR_PAGE = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doct
   button:disabled{opacity:.4;cursor:not-allowed}
   button.primary:disabled{background:#a5b4fc;border-color:#a5b4fc}
   .list{height:220px;overflow:auto;border:1px solid #e3e7ee;border-radius:6px;padding:5px}
+  *{scrollbar-width:none;-ms-overflow-style:none}*::-webkit-scrollbar{display:none}
   .entry{display:flex;gap:7px;padding:4px 6px;border-radius:4px;cursor:pointer;font-size:12px}
   .entry:hover{background:#f1f3f5}
   .entry.selected{background:#e7f1ff}
   .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+  #shot{position:absolute;inset:0;display:none;cursor:crosshair;background:rgba(0,0,0,.35)}
+  #shot.previewing{background:transparent;pointer-events:none}
+  #shotSel{position:absolute;box-sizing:border-box;border:2px solid #4263eb;background:rgba(66,99,235,.12);
+    box-shadow:0 0 0 9999px rgba(0,0,0,.35);display:none;pointer-events:none}
+  #shotTip{position:absolute;top:14px;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:20px;
+    background:rgba(33,37,41,.88);color:#fff;font-size:12px;white-space:nowrap;pointer-events:none}
+  .shotBar{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:6px;padding:6px;
+    background:#fff;border:1px solid #dfe3e9;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  .shotBar button{padding:4px 12px;font-size:12px}
+  #shotPreview{position:absolute;right:20px;bottom:20px;width:330px;display:none;gap:10px;padding:10px;
+    background:#fff;border:1px solid #dfe3e9;border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,.2);pointer-events:auto}
+  #shotPreview img{width:84px;height:56px;flex:none;object-fit:cover;border:1px solid #e9ecef;border-radius:5px;background:#f8f9fa}
+  #shotInfo{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:4px}
+  #shotInfo b{font-size:12px}
+  #shotInfo span{font-size:10px;color:#adb5bd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .shotActions{display:flex;gap:4px;flex-wrap:wrap}
+  .shotActions button{padding:3px 7px;font-size:11px}
 </style></head><body>
 <div id="cursor"></div>
 <div id="overlay">
@@ -67,6 +122,25 @@ const CURSOR_PAGE = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doct
     <div class="actions">
       <button id="cancel">取消</button>
       <button id="ok" class="primary" disabled>确定</button>
+    </div>
+  </div>
+</div>
+<div id="shot">
+  <div id="shotSel"></div>
+  <div id="shotTip">拖动鼠标框选区域，或点击「整页截图」</div>
+  <div class="shotBar">
+    <button id="shotArea">区域截图</button>
+    <button id="shotFull">整页截图</button>
+    <button id="shotCancel">取消</button>
+  </div>
+  <div id="shotPreview">
+    <img id="shotImg" />
+    <div id="shotInfo">
+      <b>截图已保存</b><span id="shotName"></span>
+      <div class="shotActions">
+        <button id="shotCopy">复制</button><button id="shotOpen">打开</button>
+        <button id="shotFolder">文件夹</button><button id="shotClose">关闭</button>
+      </div>
     </div>
   </div>
 </div>
@@ -182,6 +256,72 @@ const CURSOR_PAGE = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doct
     selected=[]; lastIndex=-1; $('overlay').style.display='flex'; load($('dir').value);
   });
   window.api.onFileChooserClose(()=>{ pending=null; $('overlay').style.display='none'; });
+
+  // Chrome-style screenshot: this layer sits above the page view.
+  const shot=$('shot'), shotSel=$('shotSel'), shotTip=$('shotTip'), shotPreview=$('shotPreview');
+  let shotStart=null, shotActive=false, shotPath='';
+  function closeShot(){
+    shotActive=false; shotStart=null; shot.style.display='none'; shot.classList.remove('previewing');
+    window.api.screenshotEnd();
+  }
+  function showShotPreview(r){
+    shotPath=r.path; shot.classList.add('previewing');
+    shotSel.style.display='none'; shotTip.style.display='none'; document.querySelector('.shotBar').style.display='none';
+    shotPreview.style.display='flex'; $('shotImg').src=r.dataUrl;
+    const parts=r.path.split(BS); $('shotName').textContent=parts[parts.length-1];
+  }
+  window.api.onScreenshotBegin(()=>{
+    shotActive=true; shotStart=null; shot.style.display='block'; shot.classList.remove('previewing');
+    shotSel.style.display='none'; shotPreview.style.display='none'; shotTip.style.display='block';
+    shotTip.textContent='拖动鼠标框选区域，或点击「整页截图」'; document.querySelector('.shotBar').style.display='flex';
+  });
+  window.api.onScreenshotEnd(()=>{
+    shotActive=false; shotStart=null; shot.style.display='none'; shot.classList.remove('previewing');
+  });
+  shot.addEventListener('mousedown', ev=>{
+    if(!shotActive || shot.classList.contains('previewing') || ev.target.closest('.shotBar')) return;
+    shotStart={x:ev.clientX,y:ev.clientY};
+    shotSel.style.display='block';
+    shotSel.style.left=ev.clientX+'px'; shotSel.style.top=ev.clientY+'px';
+    shotSel.style.width='0px'; shotSel.style.height='0px';
+    shotTip.textContent='松开鼠标完成区域截图';
+  });
+  window.addEventListener('mousemove', ev=>{
+    if(!shotStart) return;
+    shotSel.style.left=Math.min(shotStart.x,ev.clientX)+'px';
+    shotSel.style.top=Math.min(shotStart.y,ev.clientY)+'px';
+    shotSel.style.width=Math.abs(ev.clientX-shotStart.x)+'px';
+    shotSel.style.height=Math.abs(ev.clientY-shotStart.y)+'px';
+  });
+  window.addEventListener('mouseup', ev=>{
+    if(!shotStart) return;
+    const start=shotStart; shotStart=null;
+    const w=Math.abs(ev.clientX-start.x), h=Math.abs(ev.clientY-start.y);
+    if(w<6||h<6){
+      shotSel.style.display='none';
+      shotTip.textContent='拖动鼠标框选区域，或点击「整页截图」';
+      return;
+    }
+    window.api.screenshotCapture({rect:{
+      x:Math.round(Math.min(start.x,ev.clientX)), y:Math.round(Math.min(start.y,ev.clientY)),
+      width:Math.round(w), height:Math.round(h)
+    }}).then(showShotPreview).catch(e=>{
+      shotSel.style.display='none'; shotTip.textContent='截图失败：'+e.message;
+    });
+  });
+  $('shotArea').onclick=()=>{ shotTip.textContent='按住鼠标拖动，框选要截取的区域'; };
+  $('shotFull').onclick=()=>{
+    window.api.screenshotCapture({fullPage:true}).then(showShotPreview).catch(e=>{ shotTip.textContent='截图失败：'+e.message; });
+  };
+  $('shotCancel').onclick=closeShot;
+  $('shotCopy').onclick=()=>{
+    window.api.screenshotCopy($('shotImg').src).then(()=>{ $('shotCopy').textContent='已复制'; })
+      .catch(e=>{ $('shotName').textContent='复制失败：'+e.message; });
+  };
+  $('shotOpen').onclick=()=>{ window.api.screenshotOpen(shotPath); };
+  $('shotFolder').onclick=()=>{ window.api.screenshotReveal(shotPath); };
+  $('shotClose').onclick=closeShot;
+  document.addEventListener('keydown', ev=>{ if(ev.key==='Escape'&&shotActive) closeShot(); });
 </script></body></html>`)
 
 interface Tab {
@@ -191,6 +331,9 @@ interface Tab {
   title: string
   url: string
   loading: boolean
+  favicon: string
+  /** The persistent home tab is never shown in the tab strip. */
+  isHome: boolean
 }
 
 /**
@@ -205,11 +348,16 @@ export class TabbedBrowser {
   private cursorView: WebContentsView | null = null
   private cursorPoint: Point = { x: 0, y: 0 }
   private fileChooserOpen = false
+  private screenshotOpen = false
   private readonly chooserByTab = new Map<number, FileChooserRequest>()
 
-  onTabsChange?: (tabs: TabInfo[], activeId: number | null) => void
+  onTabsChange?: (tabs: TabInfo[], activeId: number | null, hasPage: boolean) => void
   onLoadEvent?: (message: string) => void
+  onCursorLayerReady?: () => void
   onFileChooser?: (request: FileChooserRequest) => void
+  onInspectResult?: (element: InspectedElement) => void
+  onInspectChange?: (active: boolean) => void
+  onNavigate?: (url: string, title: string) => void
 
   constructor() {
     this.window = new BrowserWindow({
@@ -232,7 +380,7 @@ export class TabbedBrowser {
     this.window.on('resize', () => this.layoutActive())
     this.window.on('maximize', () => this.layoutActive())
     this.window.on('unmaximize', () => this.layoutActive())
-    this.createTab()
+    this.createHomeTab()
     this.createCursorView()
     this.window.show()
     this.window.focus()
@@ -240,19 +388,34 @@ export class TabbedBrowser {
 
   // ---------- tab management ----------
 
-  createTab(url = NEW_TAB_URL): number {
+  createTab(url = NEW_TAB_URL, isHome = false): number {
     const id = this.nextId++
     const view = new WebContentsView({
-      webPreferences: { contextIsolation: true, nodeIntegration: false }
+      webPreferences: {
+        ...(isInternalUrl(url)
+          ? { preload: join(__dirname, '../preload/index.mjs'), sandbox: false }
+          : {}),
+        contextIsolation: true,
+        nodeIntegration: false,
+        // No native alert/confirm/prompt windows at all.
+        disableDialogs: true
+      }
     })
     view.setBackgroundColor('#ffffff')
     const wc = view.webContents
     const fileChooserBridge = new FileChooserBridge(wc)
     fileChooserBridge.onFileChooser = request => this.onFileChooser?.(request)
-    fileChooserBridge.onError = message => this.onLoadEvent?.('FILE CHOOSER ERROR ' + message)
+    fileChooserBridge.onInspect = element => {
+      this.onInspectResult?.(element)
+      this.onInspectChange?.(false)
+    }
+    fileChooserBridge.onInspectCancel = () => this.onInspectChange?.(false)
+    fileChooserBridge.onError = message => this.onLoadEvent?.('DIALOG BRIDGE ERROR ' + message)
     fileChooserBridge.attach()
+    void applyClientHints(wc)
+    wc.on('did-finish-load', () => { void applyClientHints(wc) })
 
-    const tab: Tab = { id, view, fileChooserBridge, title: '新标签页', url, loading: false }
+    const tab: Tab = { id, view, fileChooserBridge, title: '新标签页', url, loading: false, favicon: '', isHome }
     this.tabs.set(id, tab)
 
     // <a target="_blank"> and window.open should open a new TAB, not a window.
@@ -268,9 +431,21 @@ export class TabbedBrowser {
 
     const sync = (loading: boolean) => {
       tab.loading = loading
-      tab.url = wc.getURL()
-      tab.title = wc.getTitle() || '新标签页'
+      if (loading && fileChooserBridge.isInspecting()) {
+        void fileChooserBridge.stopInspect()
+        this.onInspectChange?.(false)
+      }
+      const actual = wc.getURL()
+      // Map internal html files back to their viewer:// URL.
+      const internal = internalUrlFromFile(actual)
+      tab.url = internal ?? actual
+      tab.title = wc.getTitle() || internalTitle(tab.url) || '新标签页'
       this.emitTabs()
+    }
+    /** Only real web pages go into history: not internal pages or new tabs. */
+    const record = () => {
+      if (!/^(https?:|file:)/i.test(tab.url)) return
+      this.onNavigate?.(tab.url, tab.title)
     }
     wc.on('did-start-loading', () => sync(true))
     wc.on('did-stop-loading', () => sync(false))
@@ -278,6 +453,7 @@ export class TabbedBrowser {
       fileChooserBridge.refresh()
       this.onLoadEvent?.(`tab ${id} finished: ${wc.getURL()} title="${wc.getTitle()}"`)
       sync(false)
+      record()
     })
     wc.on('did-fail-load', (_e, code, description, url) => {
       this.onLoadEvent?.(`tab ${id} FAILED ${code} ${description}: ${url}`)
@@ -286,31 +462,36 @@ export class TabbedBrowser {
     wc.on('render-process-gone', (_e, detail) => {
       this.onLoadEvent?.(`tab ${id} renderer gone: ${JSON.stringify(detail)}`)
     })
-    wc.on('page-title-updated', () => sync(false))
-    wc.on('did-navigate', () => sync(false))
+    wc.on('page-title-updated', () => { sync(false); record() })
+    wc.on('did-navigate', () => { tab.favicon = ''; sync(false) })
+    wc.on('page-favicon-updated', (_e, favicons) => {
+      tab.favicon = favicons[0] ?? ''
+      this.emitTabs()
+    })
     wc.on('did-navigate-in-page', () => sync(false))
 
-    void wc.loadURL(url)
+    const file = internalFile(url)
+    if (file) void wc.loadFile(file)
+    else void wc.loadURL(url)
     this.activateTab(id)
     return id
   }
 
   closeTab(id: number): void {
     const tab = this.tabs.get(id)
-    if (!tab) return
+    if (!tab || tab.isHome) return
+    if (this.activeId === id) this.endScreenshot()
     if (this.activeId === id) {
       this.window.contentView.removeChildView(tab.view)
       this.tabs.delete(id)
-      const remaining = [...this.tabs.keys()]
-      if (remaining.length) this.activateTab(remaining[remaining.length - 1])
-      else {
-        this.activeId = null
-        this.createTab()
-      }
+      const remaining = [...this.tabs.entries()].filter(([, t]) => !t.isHome)
+      if (remaining.length) this.activateTab(remaining[remaining.length - 1][0])
+      else this.home()
     } else {
       this.tabs.delete(id)
     }
     this.chooserByTab.delete(id)
+    if (tab.fileChooserBridge.isInspecting()) this.onInspectChange?.(false)
     tab.fileChooserBridge.detach()
     try { tab.view.webContents.close() } catch { /* already gone */ }
     this.emitTabs()
@@ -320,8 +501,15 @@ export class TabbedBrowser {
     const tab = this.tabs.get(id)
     if (!tab) return
     if (this.activeId !== null && this.activeId !== id) {
+      this.endScreenshot()
       const previous = this.tabs.get(this.activeId)
-      if (previous) this.window.contentView.removeChildView(previous.view)
+      if (previous) {
+        if (previous.fileChooserBridge.isInspecting()) {
+          void previous.fileChooserBridge.stopInspect()
+          this.onInspectChange?.(false)
+        }
+        this.window.contentView.removeChildView(previous.view)
+      }
     }
     this.activeId = id
     if (!this.window.contentView.children.includes(tab.view)) {
@@ -357,10 +545,12 @@ export class TabbedBrowser {
       }
     })
     view.setBackgroundColor('#00000000')
-    // Some Electron builds expose this on WebContents; ignore when unavailable.
     ;(view.webContents as unknown as { setIgnoreMouseEvents?: (ignore: boolean) => void })
       .setIgnoreMouseEvents?.(true)
     void view.webContents.loadURL(CURSOR_PAGE)
+    view.webContents.on('did-finish-load', () => {
+      this.onCursorLayerReady?.()
+    })
     this.cursorView = view
     this.window.contentView.addChildView(view)
     this.layoutActive()
@@ -372,8 +562,7 @@ export class TabbedBrowser {
    */
   setCursorPosition(point: Point): void {
     this.cursorPoint = { ...point }
-    if (!this.cursorView || this.fileChooserOpen) return
-    // View bounds are relative to the window content, not to the screen.
+    if (!this.cursorView || this.fileChooserOpen || this.screenshotOpen) return
     this.cursorView.setBounds({
       x: Math.round(LEFT_PANEL_WIDTH + point.x - 6),
       y: Math.round(TITLEBAR_HEIGHT + point.y - 4),
@@ -404,9 +593,9 @@ export class TabbedBrowser {
   showFileChooser(request: FileChooserRequest): void {
     const id = this.activeId
     if (id === null) return
+    if (this.screenshotOpen) this.endScreenshot()
     this.chooserByTab.set(id, request)
     this.fileChooserOpen = true
-    this.cursorView?.setBounds(this.pageBounds())
     this.cursorView?.webContents.send('filechooser:open', request)
   }
 
@@ -434,6 +623,23 @@ export class TabbedBrowser {
 
   isFileChooserOpen(): boolean { return this.fileChooserOpen }
 
+  /** Screenshot UI lives on the topmost cursor layer, above the page view. */
+  beginScreenshot(): void {
+    if (this.fileChooserOpen) return
+    this.screenshotOpen = true
+    this.cursorView?.setBounds(this.pageBounds())
+    this.cursorView?.webContents.send('screenshot:begin')
+  }
+
+  endScreenshot(): void {
+    if (!this.screenshotOpen) return
+    this.screenshotOpen = false
+    this.cursorView?.webContents.send('screenshot:end')
+    this.setCursorPosition(this.cursorPoint)
+  }
+
+  isScreenshotOpen(): boolean { return this.screenshotOpen }
+
   getOverlayBounds(): Rect | undefined { return this.cursorView?.getBounds() }
 
   getCursorWebContents(): WebContents | undefined {
@@ -447,16 +653,50 @@ export class TabbedBrowser {
 
   list(): TabInfo[] {
     return [...this.tabs.values()].map(t => ({
-      id: t.id, title: t.title, url: t.url, loading: t.loading
+      id: t.id, title: t.title, url: t.url, loading: t.loading, favicon: t.favicon
     }))
+  }
+
+  /** Tabs shown in the strip. The home page is a real tab but stays hidden. */
+  visibleList(): TabInfo[] {
+    return this.list().filter(t => t.url !== 'viewer://home')
   }
 
   // ---------- navigation on the active tab ----------
 
   load(url: string): Promise<void> {
-    const tab = this.active()
-    if (!tab) return Promise.resolve()
+    // Navigating an ordinary tab to viewer:// would skip its preload, so give
+    // internal pages a dedicated tab instead.
+    if (isInternalUrl(url)) {
+      this.openInternalTab(url)
+      return Promise.resolve()
+    }
+    let tab = this.active()
+    // Home is persistent: external navigation from it opens a new tab.
+    if (tab?.isHome && !isInternalUrl(url)) {
+      this.createTab(url)
+      return Promise.resolve()
+    }
+    if (!tab) {
+      this.createTab()
+      tab = this.active()
+      if (!tab) return Promise.resolve()
+    }
+    const file = internalFile(url)
+    if (file) return tab.view.webContents.loadFile(file)
     return tab.view.webContents.loadURL(url)
+  }
+
+  /** Internal pages need their own tab so the privileged preload is attached. */
+  openInternalTab(url: string): number {
+    const existing = [...this.tabs.values()].find(t => t.url === url)
+    if (existing) { this.activateTab(existing.id); return existing.id }
+    return this.createTab(url)
+  }
+
+  /** Open the settings page in a dedicated tab, like chrome://settings. */
+  openSettingsTab(): number {
+    return this.openInternalTab('viewer://settings')
   }
 
   back(): void {
@@ -471,6 +711,52 @@ export class TabbedBrowser {
 
   reload(): void { this.active()?.view.webContents.reload() }
 
+  // ---------- element selection ----------
+
+  async startElementPick(): Promise<boolean> {
+    const tab = this.active()
+    if (!tab || tab.isHome || this.isActivePageBlank()) return false
+    try {
+      await tab.fileChooserBridge.startInspect()
+      const active = tab.fileChooserBridge.isInspecting()
+      this.onInspectChange?.(active)
+      return active
+    } catch (error) {
+      this.onLoadEvent?.(`element pick failed: ${String(error)}`)
+      return false
+    }
+  }
+
+  stopElementPick(): void {
+    const tab = this.active()
+    if (!tab?.fileChooserBridge.isInspecting()) return
+    void tab.fileChooserBridge.stopInspect()
+    this.onInspectChange?.(false)
+  }
+
+  async captureFullPage(): Promise<Buffer | undefined> {
+    const tab = this.active()
+    if (!tab || tab.isHome) return undefined
+    try {
+      return await tab.fileChooserBridge.captureFullPage()
+    } catch (error) {
+      this.onLoadEvent?.(`full page capture failed: ${String(error)}`)
+      return undefined
+    }
+  }
+
+  /** The home tab always exists; clicking home just activates it. */
+  home(): void {
+    for (const tab of this.tabs.values()) {
+      if (tab.isHome) { this.activateTab(tab.id); return }
+    }
+  }
+
+  private createHomeTab(): void {
+    const id = this.createTab('viewer://home', true)
+    this.activateTab(id)
+  }
+
   /** Screen-DIP rectangle of the active page area (middle slot of the shell). */
   pageRect(): Rect {
     const win = this.window.getContentBounds()
@@ -482,9 +768,25 @@ export class TabbedBrowser {
     }
   }
 
+  /** Push a state update to the shell and to every internal page tab. */
+  broadcast(channel: string, payload?: unknown): void {
+    const targets = [
+      this.window.webContents,
+      ...[...this.tabs.values()].map(tab => tab.view.webContents)
+    ]
+    for (const wc of targets) {
+      if (!wc.isDestroyed()) wc.send(channel, payload)
+    }
+  }
+
   focusPage(): void { this.active()?.view.webContents.focus() }
 
   refreshLayout(): void { this.layoutActive() }
+
+  setLeftPanelWidth(width: number): void {
+    LEFT_PANEL_WIDTH = Math.max(44, Math.min(320, Math.round(width)))
+    this.refreshLayout()
+  }
 
   /** Keep the page view below the shell renderer so the virtual cursor stays visible. */
   sendPageToBack(): void {
@@ -524,8 +826,7 @@ export class TabbedBrowser {
       height: Math.max(1, height - TITLEBAR_HEIGHT)
     }
     tab.view.setBounds(bounds)
-    if (this.fileChooserOpen) {
-      // Keep the chooser overlay in sync with the resized page area.
+    if (this.fileChooserOpen || this.screenshotOpen) {
       this.cursorView?.setBounds(bounds)
     } else {
       this.setCursorPosition(this.cursorPoint)
@@ -534,6 +835,6 @@ export class TabbedBrowser {
   }
 
   private emitTabs(): void {
-    this.onTabsChange?.(this.list(), this.activeId)
+    this.onTabsChange?.(this.visibleList(), this.activeId, this.tabs.size > 0)
   }
 }

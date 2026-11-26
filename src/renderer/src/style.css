@@ -1,3 +1,23 @@
+/* Hide scrollbars everywhere while keeping scroll functionality. */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+body.controls-page { background: #f7f8fa; overflow: auto; padding: 0; }
+#controlsTitlebar {
+  position: sticky; top: 0; z-index: 20;
+  height: 36px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 8px 0 12px; background: #fff; border-bottom: 1px solid #d8dde6;
+  -webkit-app-region: drag; user-select: none;
+}
+.controls-title { font-size: 12px; font-weight: 600; color: #343a40; }
+.controls-win { display: flex; gap: 2px; -webkit-app-region: no-drag; }
+.controls-win button { border: 0; background: transparent; }
+.controls-win button.icon { width: 28px; padding: 0; font-size: 12px; }
+.controls-win button:hover { background: #e9ecef; }
+.controls-win button.close:hover { background: #e03131; color: #fff; }
+.controls-win button.pinned { color: #4263eb; }
+.controls-inner { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; }
+
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; font-family: ui-sans-serif, system-ui, "Microsoft YaHei", sans-serif; }
 /* The page view lives behind this renderer; keep that area transparent. */
@@ -13,6 +33,19 @@ body { background: transparent; overflow: hidden; user-select: none; }
   padding: 0 10px; -webkit-app-region: no-drag;
 }
 button, input, select { font: inherit; height: 29px; -webkit-app-region: no-drag; }
+/* Address/search box keeps the bookmark star at its right edge. */
+.url-box { position: relative; flex: 1; min-width: 120px; display: flex; align-items: center; }
+#url { width: 100%; padding-right: 32px; font-size: 12px; }
+#url::placeholder { font-size: 11px; color: #adb5bd; }
+button.url-star {
+  position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 23px; padding: 3px; border: 0; background: transparent;
+  color: #adb5bd; border-radius: 5px; display: flex; align-items: center; justify-content: center;
+}
+button.url-star svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; }
+button.url-star:hover { color: #495057; background: #f1f3f5; }
+button.url-star.active { color: #f59f00; }
+button.url-star.active svg { fill: currentColor; }
 button {
   padding: 0 10px; border: 1px solid #cbd2dd; background: #fff;
   border-radius: 6px; cursor: pointer; white-space: nowrap; font-size: 12px;
@@ -33,6 +66,14 @@ select { padding: 0 6px; border: 1px solid #cbd2dd; border-radius: 6px; backgrou
 .check input { width: auto; height: auto; }
 .pos { font: 10px ui-monospace, monospace; color: #adb5bd; white-space: nowrap; margin-left: auto; }
 
+button.tool-icon {
+  width: 26px; height: 26px; padding: 4px; flex: none;
+  border: 0; background: transparent; color: #868e96;
+  border-radius: 5px; display: flex; align-items: center; justify-content: center;
+}
+button.tool-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+button.tool-icon:hover { color: #343a40; background: #f1f3f5; }
+button.tool-icon.active { color: #4263eb; background: transparent; }
 .wincontrols { display: flex; margin-left: auto; }
 .wincontrols button { width: 34px; padding: 0; border: 0; background: transparent; color: #495057; font-size: 13px; }
 .wincontrols button:hover { background: #e9ecef; }
@@ -44,15 +85,77 @@ select { padding: 0 6px; border: 1px solid #cbd2dd; border-radius: 6px; backgrou
   background: #f7f8fa; border-color: #e3e7ee; border-style: solid;
   font-size: 12px; color: #495057; overflow: auto;
 }
-#left-panel { width: 210px; border-width: 0 1px 0 0; padding: 12px 10px; }
+#left-panel { position: relative; width: 210px; border-width: 0 1px 0 0; padding: 12px 10px; transition: width .15s ease; display: flex; flex-direction: column; overflow: hidden; }
+#tabs { flex: 1; min-height: 0; overflow: hidden; }
+.side-tools {
+  flex: none; margin-top: auto; padding-top: 8px; border-top: 1px solid #e3e7ee;
+  display: flex; flex-direction: row; gap: 2px; justify-content: space-between;
+}
+.side-tools .side-settings { flex: 1; width: auto; min-width: 0; padding: 0; justify-content: center; }
+.side-tools .side-settings span { display: none; }
+#left-panel.collapsed { width: 44px; padding: 12px 6px; overflow: hidden; }
+#left-panel.collapsed .tab .title,
+#left-panel.collapsed .tab .x,
+#left-panel.collapsed .title-text { display: none; }
+#left-panel.collapsed .panel-title { justify-content: center; }
+/* Both buttons share the same size; the plus always sits below the tab list. */
+#newtab-side, #toggleSidebar {
+  width: 24px; height: 24px; padding: 0; margin: 0;
+  border: 1px solid #d8dde6; border-radius: 6px; background: #fff; color: #868e96;
+  display: flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1;
+}
+#newtab-side {
+  flex: none; width: 100%; height: 28px; margin-top: 6px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px; padding: 0 10px;
+  background: #f1f3f5; border-color: #e9ecef;
+}
+#newtab-side:hover { background: #e9ecef; border-color: #dee2e6; }
+.plus-icon { font-size: 16px; line-height: 1; }
+.newtab-label { font-size: 12px; }
+#left-panel.collapsed #newtab-side {
+  width: 24px; height: 24px; margin-left: auto; margin-right: auto; padding: 0; justify-content: center;
+}
+#left-panel.collapsed .newtab-label { display: none; }
+.side-settings {
+  width: 100%; height: 28px; margin: 0; padding: 0 10px;
+  display: flex; align-items: center; gap: 8px;
+  background: transparent; border-color: transparent; color: #868e96; font-size: 12px;
+}
+.side-settings:hover { background: #f1f3f5; color: #343a40; }
+.side-settings svg { width: 15px; height: 15px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#left-panel.collapsed .side-settings { width: 24px; height: 24px; margin-left: auto; margin-right: auto; padding: 0; justify-content: center; }
+#left-panel.collapsed .side-settings span { display: none; }
+#left-panel.collapsed .side-tools { flex-wrap: wrap; justify-content: center; }
+#left-panel.collapsed .side-tools .side-settings { flex: none; width: 24px; margin: 0; }
+#newtab-side:hover, #toggleSidebar:hover { color: #343a40; background: #f8f9fa; }
+/* Collapse icon is borderless and transparent in both states. */
+#toggleSidebar { border-color: transparent; background: transparent; }
+#toggleSidebar:hover { background: #f1f3f5; }
+#left-panel.collapsed .tab { padding: 0; justify-content: center; gap: 0; }
+#left-panel.collapsed .tab-spinner {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0;
+}
+#toggleSidebar svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s ease; }
+#toggleSidebar.collapsed svg { transform: rotate(180deg); }
 #right-panel { width: 300px; border-width: 0 0 0 1px; padding: 12px; }
 #page-slot { flex: 1; background: transparent; pointer-events: none; }
+#empty-page {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: #fff; color: #868e96; font-size: 15px; line-height: 2; text-align: center;
+}
+#empty-page span { font-size: 12px; color: #adb5bd; }
 
-.panel-title { font-weight: 600; font-size: 13px; color: #343a40; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+.panel-title { flex: none; font-weight: 600; font-size: 13px; color: #343a40; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
 .mini { height: 24px; padding: 0 8px; font-size: 11px; }
 
 /* Vertical tab strip */
 #tabs { display: flex; flex-direction: column; gap: 4px; }
+#tabList {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px;
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+#tabList::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .tab {
   position: relative;
   display: flex; align-items: center; gap: 6px;
@@ -62,6 +165,12 @@ select { padding: 0 6px; border: 1px solid #cbd2dd; border-radius: 6px; backgrou
 }
 .tab.active { background: #4263eb; color: #fff; }
 .tab .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.tab-icon { width: 16px; height: 16px; flex: none; border-radius: 2px; }
+.default-icon {
+  background: #adb5bd;
+  -webkit-mask: center / 14px 14px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3c2.5 2.5 3.5 5.5 3.5 9s-1 6.5-3.5 9c-2.5-2.5-3.5-5.5-3.5-9S9.5 5.5 12 3z'/%3E%3C/svg%3E");
+}
+.tab.active .default-icon { background: #fff; }
 .tab-spinner {
   width: 11px; height: 11px; flex: none;
   border: 2px solid currentColor; border-right-color: transparent;
@@ -79,7 +188,12 @@ select { padding: 0 6px; border: 1px solid #cbd2dd; border-radius: 6px; backgrou
   60% { transform: scaleX(.85); transform-origin: left }
   100% { transform: scaleX(.85); transform-origin: right; opacity: 0 }
 }
-.tab .x { border: 0; background: transparent; color: inherit; opacity: .7; padding: 0 4px; font-size: 14px; line-height: 1; border-radius: 3px; }
+.tab .x {
+  width: 18px; height: 18px; flex: none; padding: 0;
+  border: 0; border-radius: 4px; background: transparent; color: inherit;
+  opacity: .7; font-size: 13px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
 .tab .x:hover { background: rgba(255,255,255,.2); opacity: 1; }
 
 .side-hint { margin-top: 16px; padding: 10px; color: #adb5bd; font-size: 11px; line-height: 1.7; }
@@ -137,3 +251,50 @@ select { padding: 0 6px; border: 1px solid #cbd2dd; border-radius: 6px; backgrou
 .file-entry.selected { background: #e7f1ff; }
 .file-entry .ico { width: 14px; text-align: center; color: #868e96; }
 .file-entry .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- toolbar extras: element pick / screenshot as a grouped pair ---------- */
+.tool-actions {
+  display: flex; align-items: center; gap: 2px;
+  margin: 0 18px; padding: 3px; background: #f1f3f5; border-radius: 8px;
+}
+button.tool-icon svg circle:last-child { fill: none; }
+button.tool-icon.active { color: #4263eb; background: #e7f1ff; }
+
+/* floating element info card */
+.element-card {
+  position: fixed; z-index: 1000; top: 54px; right: 152px; width: 360px;
+  max-height: calc(100vh - 70px); display: flex; flex-direction: column;
+  background: #fff; border: 1px solid #dfe3e9; border-radius: 10px;
+  box-shadow: 0 12px 36px rgba(15, 20, 30, .18); overflow: hidden;
+}
+.element-card[hidden], .pick-hint[hidden] { display: none; }
+.popover-head {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  height: 36px; padding: 0 8px 0 12px; border-bottom: 1px solid #eef0f3;
+  font-size: 12px; font-weight: 600; color: #343a40;
+}
+.popover-close {
+  width: 22px; height: 22px; padding: 0; border: 0; background: transparent;
+  color: #adb5bd; font-size: 16px; line-height: 1; border-radius: 4px;
+}
+.popover-close:hover { background: #f1f3f5; color: #343a40; }
+
+/* element selection */
+.pick-hint {
+  position: fixed; z-index: 1001; top: 58px; left: 50%; transform: translateX(-50%);
+  padding: 7px 14px; border-radius: 20px; background: rgba(33, 37, 41, .88); color: #fff;
+  font-size: 12px; white-space: nowrap; pointer-events: none;
+  box-shadow: 0 6px 16px rgba(0,0,0,.2);
+}
+.element-card { right: 24px; width: 400px; }
+.element-body { padding: 10px 12px; overflow: auto; font-size: 12px; color: #495057; }
+.element-line { display: flex; gap: 8px; margin-bottom: 6px; line-height: 1.5; }
+.element-line .key { flex: none; width: 48px; color: #868e96; }
+.element-line .val { min-width: 0; word-break: break-all; user-select: text; }
+.element-code {
+  margin-top: 8px; padding: 8px; max-height: 180px; overflow: auto;
+  background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px;
+  font: 11px/1.6 ui-monospace, Consolas, monospace; color: #343a40; white-space: pre-wrap; word-break: break-all; user-select: text;
+}
+.element-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+

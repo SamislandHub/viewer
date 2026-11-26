@@ -1,0 +1,17 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: #f7f8fa; color: #212529; font: 14px/1.6 ui-sans-serif, system-ui, "Microsoft YaHei", sans-serif; }
+.home-page { max-width: 720px; margin: 0 auto; padding: 80px 24px; }
+.hero { text-align: center; margin-bottom: 40px; }
+.hero h1 { font-size: 36px; font-weight: 600; color: #343a40; margin: 0 0 8px; }
+.hero p { color: #868e96; margin: 0; }
+.shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; }
+.shortcut {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 18px 12px; background: #fff; border: 1px solid #e3e7ee; border-radius: 12px;
+  color: #495057; text-decoration: none; font-size: 13px; transition: .15s;
+}
+.shortcut:hover { border-color: #4263eb; color: #4263eb; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+.ico {
+  width: 40px; height: 40px; border-radius: 10px; background: #e7f1ff; color: #4263eb;
+  display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600;
+}

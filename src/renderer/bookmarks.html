@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>收藏夹</title>
+  <link rel="stylesheet" href="./src/list-page.css" />
+</head>
+<body>
+  <div class="list-page">
+    <h1>收藏夹</h1>
+    <p class="hint">地址栏右侧的星标可收藏当前页面（Ctrl+D）</p>
+    <div class="toolbar">
+      <input id="filter" type="text" placeholder="筛选标题或网址" />
+      <span id="count" class="count"></span>
+      <button id="clearAll" class="danger">清空收藏</button>
+    </div>
+    <div id="list" class="card"></div>
+  </div>
+  <script type="module" src="./src/bookmarks.ts"></script>
+</body>
+</html>

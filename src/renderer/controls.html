@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Viewer Controls</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body class="controls-page">
+  <header id="controlsTitlebar">
+    <span class="controls-title">Viewer 控制台</span>
+    <div class="controls-win">
+      <button id="controlsPin" class="icon" title="置顶">▣</button>
+      <button id="controlsMin" class="icon" title="最小化">─</button>
+      <button id="controlsClose" class="icon close" title="关闭">×</button>
+    </div>
+  </header>
+  <div class="controls-inner">
+    <div class="panel-title">虚拟鼠标</div>
+    <div class="vm-grid">
+      <div class="vm-row">
+        <input id="mx" type="number" value="400" title="X 坐标" />
+        <input id="my" type="number" value="250" title="Y 坐标" />
+        <select id="space" title="坐标基准">
+          <option value="page">网页</option>
+          <option value="screen">屏幕</option>
+        </select>
+      </div>
+      <div class="vm-row">
+        <select id="clickButton" title="鼠标按键">
+          <option value="left">左键</option>
+          <option value="right">右键</option>
+        </select>
+        <input id="clickCount" type="number" value="1" min="1" max="10" title="连击次数" />
+        <button id="click">点击</button>
+      </div>
+      <div class="vm-row">
+        <button id="move">移动</button>
+        <button id="moveClick" class="primary">移动并点击</button>
+        <button id="center">居中</button>
+      </div>
+      <div class="vm-row">
+        <input id="wheelAmount" type="number" value="300" title="滚动量" />
+        <button id="wheelUp">向上滚动</button>
+        <button id="wheelDown">向下滚动</button>
+      </div>
+      <div class="vm-row vm-meta">
+        <label class="check"><input id="visible" type="checkbox" /> 显示光标</label>
+        <span id="pos" class="pos">--, --</span>
+      </div>
+
+      <div class="ai-note">虚拟键盘</div>
+      <div class="vm-row">
+        <input id="kbText" type="text" placeholder="输入文字（含中文）" />
+        <button id="kbType">输入</button>
+      </div>
+      <div class="vm-row">
+        <select id="kbKey" title="按键">
+          <option value="Enter">Enter</option>
+          <option value="Tab">Tab</option>
+          <option value="Backspace">Backspace</option>
+          <option value="Escape">Escape</option>
+          <option value="Space">Space</option>
+          <option value="ArrowUp">↑</option>
+          <option value="ArrowDown">↓</option>
+          <option value="ArrowLeft">←</option>
+          <option value="ArrowRight">→</option>
+          <option value="Ctrl+A">Ctrl+A</option>
+          <option value="Ctrl+C">Ctrl+C</option>
+          <option value="Ctrl+V">Ctrl+V</option>
+        </select>
+        <button id="kbPress">按键</button>
+      </div>
+      <div id="enKeyboard" class="en-keyboard">
+        <div class="kb-row">
+          <button data-key="q">q</button><button data-key="w">w</button><button data-key="e">e</button>
+          <button data-key="r">r</button><button data-key="t">t</button><button data-key="y">y</button>
+          <button data-key="u">u</button><button data-key="i">i</button><button data-key="o">o</button>
+          <button data-key="p">p</button>
+        </div>
+        <div class="kb-row">
+          <button data-key="a">a</button><button data-key="s">s</button><button data-key="d">d</button>
+          <button data-key="f">f</button><button data-key="g">g</button><button data-key="h">h</button>
+          <button data-key="j">j</button><button data-key="k">k</button><button data-key="l">l</button>
+        </div>
+        <div class="kb-row">
+          <button data-key="Shift" class="kb-wide">Shift</button>
+          <button data-key="z">z</button><button data-key="x">x</button><button data-key="c">c</button>
+          <button data-key="v">v</button><button data-key="b">b</button><button data-key="n">n</button>
+          <button data-key="m">m</button>
+          <button data-key="Backspace" class="kb-wide">⌫</button>
+        </div>
+        <div class="kb-row">
+          <button data-key="Space" class="kb-space">Space</button>
+          <button data-key="Enter" class="kb-wide">Enter</button>
+        </div>
+      </div>
+
+      <div class="ai-note">资源分析</div>
+      <div class="vm-row">
+        <select id="resFilter" title="资源类型">
+          <option value="all">全部</option>
+          <option value="xhr">接口 XHR/Fetch</option>
+          <option value="document">文档</option>
+          <option value="script">脚本</option>
+          <option value="stylesheet">样式</option>
+          <option value="image">图片</option>
+          <option value="other">其他</option>
+        </select>
+        <button id="resClear">清空</button>
+      </div>
+      <div id="resList" class="res-list"></div>
+      <div id="resDetail" class="res-detail">点击请求查看详情</div>
+    </div>
+  </div>
+  <script type="module" src="./src/controls.ts"></script>
+</body>
+</html>

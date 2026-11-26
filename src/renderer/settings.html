@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>设置</title>
+  <link rel="stylesheet" href="./src/settings.css" />
+</head>
+<body>
+  <div class="settings-page">
+    <h1>设置</h1>
+    <section class="card">
+      <h2>界面</h2>
+      <label class="row"><span>打开虚拟控制台</span><input id="setConsole" type="checkbox" /></label>
+      <label class="row"><span>显示虚拟光标</span><input id="setCursor" type="checkbox" /></label>
+      <div class="row"><span>资源</span><button id="setClear">清空当前资源</button></div>
+    </section>
+    <section class="card">
+      <h2>浏览器信息</h2>
+      <div id="setInfo" class="info"></div>
+    </section>
+  </div>
+  <script type="module" src="./src/settings.ts"></script>
+</body>
+</html>

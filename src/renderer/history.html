@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>历史记录</title>
+  <link rel="stylesheet" href="./src/list-page.css" />
+</head>
+<body>
+  <div class="list-page">
+    <h1>历史记录</h1>
+    <p class="hint">访问过的网页会自动出现在这里，最多保留 300 条</p>
+    <div class="toolbar">
+      <input id="filter" type="text" placeholder="筛选标题或网址" />
+      <span id="count" class="count"></span>
+      <button id="clearAll" class="danger">清空历史</button>
+    </div>
+    <div id="list" class="card"></div>
+  </div>
+  <script type="module" src="./src/history.ts"></script>
+</body>
+</html>

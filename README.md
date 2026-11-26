@@ -6,18 +6,24 @@
 
 ## 截图
 
-![Viewer 主界面：标签页、网页区与右侧工具面板](docs/screenshots/01-browser.png)
+![Viewer 主界面：标签页与网页区](docs/screenshots/01-browser.png)
 
-![交互测试页：网页区与右侧工具面板](docs/screenshots/02-test-page.png)
+![交互测试页](docs/screenshots/02-test-page.png)
 
 ## 功能
 
-- **自绘浏览器外壳**：无边框窗口、顶部工具栏、左侧垂直标签页、右侧工具面板。每个标签是一个独立的 `WebContentsView`。
+- **自绘浏览器外壳**：无边框窗口、顶部工具栏、左侧垂直标签页；虚拟输入控件在独立的控制台窗口中。每个标签是一个独立的 `WebContentsView`。
 - **虚拟鼠标**：可见的橙色光标，支持移动、左键/右键、连击（1–10 次）、滚轮；每个标签独立保存光标位置与显示状态。点击通过 `webContents.sendInputEvent` 注入，页面收到 `isTrusted=true` 的事件，CSS `:hover` 正常生效。
 - **虚拟键盘**：英文键盘与文字输入（含中文），通过 `sendInputEvent` 与系统剪贴板实现，同样不注入页面 JS。
 - **文件选择器**：通过 CDP 拦截文件选择请求，在应用内展示自绘的文件浏览器（磁盘/上一级/多选/accept 过滤）；这是唯一使用 CDP 的场景。
 - **资源分析**：用 `session.webRequest` 观察请求，按标签展示 URL、方法、状态、类型、MIME、耗时与错误，可过滤 XHR/文档/脚本/样式/图片。
 - **链接处理**：`target=_blank` 与 `window.open` 转为新标签页，不弹新窗口。
+- **元素选择**：地址栏后的准星图标开启 DevTools 式选取模式，点击页面元素即可查看标签、ID、类名、尺寸、文本与 HTML 片段（CDP Overlay，不注入脚本）；`Esc` 退出。
+- **截图**：相机图标把当前可视区域保存为 PNG 到 `data/screenshots`，并弹出缩略图预览，可直接打开文件或定位到文件夹。
+- **收藏 / 书签**：地址栏右侧星标收藏当前页（`Ctrl+D` 切换）；收藏页可打开、删除或清空条目，数据保存在 `data/bookmarks.json`。
+- **历史记录**：自动记录访问过的网页（同一网址只保留最新一条）；历史页可打开、单条删除或一键清空，数据保存在 `data/history.json`。
+- **内置页面**：`viewer://bookmarks`、`viewer://history`、`viewer://downloads` 三个独立页面，支持筛选、打开、删除与清空；可从左侧栏底部图标、主页快捷入口或地址栏进入。
+- **下载管理**：接管 `will-download`，文件统一保存到 `data/downloads`；独立页面显示进度，支持打开、定位、取消、中断重试与清除记录。
 
 ## 安装与运行
 
@@ -46,16 +52,80 @@ npm run dev
 
 - 地址栏输入网址或搜索词后回车；本地路径（如 `F:\path\file.html`）会转成 `file://` 打开。
 - 左侧 `+` 或 `Ctrl+T` 新建标签；点击标签切换；标签加载时显示旋转指示与进度条。
-- 右侧「虚拟鼠标」区设置 X/Y（网页/屏幕坐标）、按键、连击次数与滚动量；「显示」控制光标可见性。
-- 右侧「虚拟键盘」区可输入文字或点英文键盘；中文通过系统剪贴板 + Ctrl+V 注入。
-- 右侧「资源分析」区按类型过滤请求，点击行查看详情；「清空」只清当前标签。
+- 点工具栏 `▤` 打开/关闭「虚拟控制台」（独立窗口，默认隐藏、默认不置顶）。
+- 控制台「虚拟鼠标」区设置 X/Y（网页/屏幕坐标）、按键、连击次数与滚动量；「显示」控制光标可见性。
+- 控制台「虚拟键盘」区可输入文字或点英文键盘；中文通过系统剪贴板 + Ctrl+V 注入。
+- 控制台「资源分析」区按类型过滤请求，点击行查看详情；「清空」只清当前标签。
+- 地址栏右侧星标收藏当前页（`Ctrl+D`）；左侧栏底部四个按钮依次打开设置、历史记录、收藏夹、下载管理页面。地址栏后面只有元素选择（鼠标指针图标，点页面元素看信息，`Esc` 退出）和截图（保存可视区域到 `data/screenshots`）。
 
 测试页：`test/interaction-test.html` 覆盖文件选择、弹窗、链接、鼠标事件、拖拽、表单、剪贴板、全屏等原生交互。
 
+## Electron 与 Chrome 的差异
+
+Electron 复用了 Chromium 内核，但不是一个完整浏览器。以下功能在 Chrome 里可用，在 Electron 里缺失或行为不同。
+
+### 对话框
+
+| API / 功能 | Electron 表现 |
+|---|---|
+| `window.prompt()` | 不支持，调用抛 `prompt() is not supported` |
+| `window.alert()` / `confirm()` | 支持，但会弹阻塞式原生窗口，样式不可定制；Viewer 已用 `disableDialogs` 关闭 |
+| `beforeunload` 确认框 | 不弹原生框，只有 `will-prevent-unload` 事件 |
+| HTTP 认证框 | 不弹，只有 `login` 事件，不处理则请求失败 |
+| 证书错误 / 客户端证书选择 | 不弹 UI，只有 `certificate-error` / `select-client-certificate` 事件 |
+
+### 浏览器自带 UI
+
+- **PDF 阅读器**：未打包 Chromium PDF 组件，需要自行集成 pdf.js
+- **下载管理器 / 下载栏**：原生没有下载 UI；Viewer 已接管 `will-download`，提供自绘下载页面
+- **打印预览**：`window.print()` 受限，需用 `webContents.print()`
+- **查找栏、缩放 UI、书签、历史、自动填充、密码管理器、翻译、Cast、Safe Browsing、组件更新**：均无
+- **扩展商店与扩展管理 UI**：无，扩展仅支持部分 API
+
+### Web 平台 API
+
+- **File System Access API**：`showOpenFilePicker()` / `showSaveFilePicker()` / `showDirectoryPicker()` 不可用
+- **Web Share、Payment Request**：不支持
+- **Push API**：缺少 FCM 推送服务，基本不可用
+- **Notification**：可用但受限，建议使用 Electron 原生通知
+- **Geolocation、SpeechRecognition**：依赖 Google 服务，默认经常不可用
+- **Widevine / EME DRM**：不内置，Netflix、Spotify 等无法播放
+- **WebAuthn**：支持不完整，需要额外配置
+- **Web Bluetooth / USB / Serial / HID**：需要自行处理权限，部分平台受限
+- **WebXR**：需要手动开启 feature flag
+
+### 已废弃或移除
+
+- `<webview>`：官方不推荐，长期有稳定性风险
+- `BrowserView`：已废弃，改用 `WebContentsView`
+- `remote` 模块：已移除
+- NaCl / PNaCl、PPAPI、Flash：Chromium 层面已彻底移除
+- `chrome.*` 扩展 API：仅实现子集，`chrome.runtime`、`chrome.tabs` 等大部分不可用
+
+### 指纹差异
+
+Viewer 会在不注入页面脚本的前提下尽量对齐 Chrome，实现见 `src/main/fingerprint.ts`。
+
+已对齐：
+
+- `navigator.userAgent`：不再包含 `Electron/x.y.z`，而是与内置 Chromium 版本一致的 `Chrome/<major>.0.0.0`
+- `navigator.userAgentData.brands`：通过 CDP `Emulation.setUserAgentOverride` 补上 `Google Chrome`
+- `navigator.userAgentData.platform` / `navigator.platform`：`Windows` / `Win32`
+- `navigator.languages`：`zh-CN, zh, en`
+- `navigator.webdriver`：`false`
+- `navigator.vendor`：`Google Inc.`
+- `navigator.plugins` / `mimeTypes`：与 Chromium 一致（5 个 PDF 相关插件）
+- `navigator.pdfViewerEnabled`：`true`
+
+仍存在、且必须注入脚本才能改的：
+
+- `window.chrome` 对象存在，但 `chrome.runtime` 缺失
+- `Notification.permission` 默认是 `granted`，Chrome 是 `default`
+- `window.chrome` 的可枚举属性为空
+
 ## 已知限制
 
-- `alert` / `confirm` / `beforeunload` 暂不接管：WebContentsView 无法阻止 Electron 默认弹框，`js-dialog` 事件仅在 `<webview>` guest 上触发。
-- `window.prompt` 被 Electron 官方禁用，不产生事件，无法在不注入页面 JS 的前提下接管。
+- `alert` / `confirm` 已通过 `disableDialogs` 直接禁用：`alert` 立即返回，`confirm` 固定返回 `false`，`prompt` 返回 `null`。需要用户确认的业务逻辑应改用页面内自定义弹框。
 - 虚拟光标所在的约 34×28 区域会拦截真实鼠标（该 Electron 版本的 View 不支持鼠标穿透）；网页其余区域真实鼠标正常。
 - 资源分析只记录请求元数据，不记录响应 body——读取 body 需要 CDP，按设计边界未启用。
 - 文件选择器需要可信用户手势触发；脚本式 `input.click()` 不算手势。
@@ -70,8 +140,13 @@ npm run dev
 | `src/main/virtual-mouse.ts` | 每标签的虚拟鼠标状态与输入注入 |
 | `src/main/virtual-keyboard.ts` | 文字与按键输入 |
 | `src/main/resource-monitor.ts` | `session.webRequest` 资源采集 |
-| `src/main/dialog-bridge.ts` | CDP 文件选择拦截（唯一 CDP 场景） |
-| `src/renderer/` | 自绘标题栏、左右面板 |
+| `src/main/fingerprint.ts` | UA 与 Client Hints 对齐（无脚本注入） |
+| `src/main/dialog-bridge.ts` | CDP 文件选择拦截 + 元素选择（同一调试会话） |
+| `src/main/bookmarks.ts` | 收藏夹持久化（`data/bookmarks.json`） |
+| `src/main/history.ts` | 历史记录持久化（`data/history.json`） |
+| `src/main/downloads.ts` | 下载接管与进度跟踪（`data/downloads`） |
+| `src/renderer/index.html` / `controls.html` | 主窗口 / 独立控制台 |
+| `src/renderer/bookmarks.html` / `history.html` / `downloads.html` | 收藏页 / 历史页 / 下载页（对应 `viewer://` 内置地址） |
 
 修改 `src/main` 需重启应用；修改 `src/renderer` 在下次构建后生效。运行 `npm run typecheck` 做类型检查，`npm run build` 生成 `out/`。
 

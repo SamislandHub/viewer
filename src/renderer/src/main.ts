@@ -1,19 +1,30 @@
-import type { ResourceRecord } from '../../main/resource-monitor'
-
-interface TabInfo { id: number; title: string; url: string; loading: boolean }
+import type { TabInfo } from '../../main/browser'
+import type { Bookmark } from '../../main/bookmarks'
+import type { InspectedElement } from '../../main/dialog-bridge'
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
 
+function make<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag)
+  if (className) node.className = className
+  if (text !== undefined) node.textContent = text
+  return node
+}
+
 const urlInput = $<HTMLInputElement>('url')
-const mx = $<HTMLInputElement>('mx')
-const my = $<HTMLInputElement>('my')
-const space = $<HTMLSelectElement>('space')
-const pos = $<HTMLElement>('pos')
-const tabsEl = $<HTMLElement>('tabs')
-const currentPage = $<HTMLElement>('current-page')
+const tabsEl = $<HTMLElement>('tabList')
+const newTabSide = $<HTMLButtonElement>('newtab-side')
+const leftPanel = $<HTMLElement>('left-panel')
+const toggleSidebar = $<HTMLButtonElement>('toggleSidebar')
+const star = $<HTMLButtonElement>('bookmark')
+const elementCard = $<HTMLElement>('elementCard')
+const pickHint = $<HTMLElement>('pickHint')
 
 let tabs: TabInfo[] = []
 let activeId: number | null = null
+let bookmarks: Bookmark[] = []
+let bookmarkedUrl = ''
+let picking = false
 
 function renderTabs(): void {
   tabsEl.innerHTML = ''
@@ -21,6 +32,17 @@ function renderTabs(): void {
     const el = document.createElement('div')
     el.className = 'tab' + (tab.id === activeId ? ' active' : '') + (tab.loading ? ' loading' : '')
     el.title = tab.url
+
+    // Favicon, restored through the shell renderer (no page JS involved).
+    if (tab.favicon) {
+      const icon = document.createElement('img')
+      icon.className = 'tab-icon'
+      icon.src = tab.favicon
+      icon.onerror = () => { icon.replaceWith(makeDefaultIcon()) }
+      el.append(icon)
+    } else {
+      el.append(makeDefaultIcon())
+    }
 
     if (tab.loading) {
       const spinner = document.createElement('span')
@@ -31,6 +53,7 @@ function renderTabs(): void {
     const title = document.createElement('span')
     title.className = 'title'
     title.textContent = tab.title || '新标签页'
+    el.append(title)
 
     const close = document.createElement('button')
     close.className = 'x'
@@ -40,12 +63,34 @@ function renderTabs(): void {
       e.stopPropagation()
       void window.api.tabClose(tab.id)
     })
+    el.append(close)
 
-    el.append(title, close)
     el.addEventListener('click', () => void window.api.tabActivate(tab.id))
     tabsEl.append(el)
   }
+  // The add button lives in the scrollable list, right after the last tab.
+  tabsEl.append(newTabSide)
 }
+
+function makeDefaultIcon(): HTMLElement {
+  const span = document.createElement('span')
+  span.className = 'tab-icon default-icon'
+  return span
+}
+
+// ---------- sidebar collapse / expand ----------
+
+let sidebarCollapsed = false
+function applySidebar(): void {
+  leftPanel.classList.toggle('collapsed', sidebarCollapsed)
+  toggleSidebar.classList.toggle('collapsed', sidebarCollapsed)
+  toggleSidebar.title = sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'
+  void window.api.sidebarWidth(sidebarCollapsed ? 44 : 210)
+}
+toggleSidebar.addEventListener('click', () => {
+  sidebarCollapsed = !sidebarCollapsed
+  applySidebar()
+})
 
 function go(): void {
   void window.api.browserLoad(urlInput.value).catch(e => console.error(e))
@@ -55,194 +100,176 @@ urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') go() })
 $('back').addEventListener('click', () => void window.api.browserBack())
 $('forward').addEventListener('click', () => void window.api.browserForward())
 $('reload').addEventListener('click', () => void window.api.browserReload())
-
-$('newtab-side').addEventListener('click', () => void window.api.tabNew())
+$('home').addEventListener('click', () => void window.api.browserHome())
+newTabSide.addEventListener('click', () => void window.api.tabNew())
+$('openSettings').addEventListener('click', () => void window.api.settingsOpen())
+$('openHistory').addEventListener('click', () => void window.api.internalOpen('viewer://history'))
+$('openBookmarks').addEventListener('click', () => void window.api.internalOpen('viewer://bookmarks'))
+$('openDownloads').addEventListener('click', () => void window.api.internalOpen('viewer://downloads'))
 $('winmin').addEventListener('click', () => void window.api.winMinimize())
 $('winmax').addEventListener('click', () => void window.api.winMaximize())
 $('winclose').addEventListener('click', () => void window.api.winClose())
 
-const coords = () => ({ x: Number(mx.value), y: Number(my.value), s: space.value as 'page' | 'screen' })
-
-$('move').addEventListener('click', () => { const c = coords(); void window.api.vmMove(c.x, c.y, c.s) })
-const clickOptions = () => ({
-  button: ($('clickButton') as HTMLSelectElement).value as 'left' | 'right',
-  clickCount: Number(($('clickCount') as HTMLInputElement).value) || 1
+$('pinWindow').addEventListener('click', async () => {
+  const pinned = !(await window.api.winIsPinned())
+  await window.api.winPin(pinned)
+  $('pinWindow').classList.toggle('active', pinned)
 })
-
-$('click').addEventListener('click', () => {
-  const o = clickOptions()
-  void window.api.vmClick(o.button, o.clickCount)
-})
-$('moveClick').addEventListener('click', () => {
-  const c = coords()
-  const o = clickOptions()
-  void window.api.vmMoveClick(c.x, c.y, c.s, o.button, o.clickCount)
-})
-$('center').addEventListener('click', () => void window.api.vmCenter())
-$('wheelUp').addEventListener('click', () => {
-  void window.api.vmScroll(0, -Number(($('wheelAmount') as HTMLInputElement).value))
-})
-$('wheelDown').addEventListener('click', () => {
-  void window.api.vmScroll(0, Number(($('wheelAmount') as HTMLInputElement).value))
-})
-$('kbType').addEventListener('click', () => {
-  void window.api.kbType(($('kbText') as HTMLInputElement).value)
-})
-$('kbPress').addEventListener('click', () => {
-  void window.api.kbPress(($('kbKey') as HTMLSelectElement).value)
-})
-
-// On-screen English keyboard
-let shiftOn = false
-const shiftKey = document.querySelector<HTMLButtonElement>('#enKeyboard [data-key="Shift"]')!
-for (const button of Array.from(document.querySelectorAll<HTMLButtonElement>('#enKeyboard button'))) {
-  button.addEventListener('click', () => {
-    const key = button.dataset.key ?? ''
-    if (key === 'Shift') {
-      shiftOn = !shiftOn
-      shiftKey.classList.toggle('active', shiftOn)
-      return
-    }
-    if (key.length === 1 && /[a-z]/.test(key)) {
-      void window.api.kbType(shiftOn ? key.toUpperCase() : key)
-      shiftOn = false
-      shiftKey.classList.remove('active')
-    } else {
-      void window.api.kbPress(key)
-    }
-  })
-}
-$<HTMLInputElement>('visible').addEventListener('change', e => {
-  void window.api.vmVisible((e.target as HTMLInputElement).checked)
+void window.api.winIsPinned?.().then(pinned => {
+  $('pinWindow').classList.toggle('active', pinned)
 })
 
 document.addEventListener('keydown', e => {
   if (e.ctrlKey && e.key.toLowerCase() === 't') {
     e.preventDefault()
     void window.api.tabNew()
-    return
   }
-  const tag = (e.target as HTMLElement)?.tagName
-  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
-  const step = e.shiftKey ? 20 : 5
-  const moves: Record<string, [number, number]> = {
-    ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step]
+  if (e.ctrlKey && e.key.toLowerCase() === 'd') {
+    e.preventDefault()
+    void toggleBookmark()
   }
-  if (moves[e.key]) {
-    e.preventDefault()
-    void window.api.vmNudge(...moves[e.key])
-  } else if (e.key === 'Enter') {
-    e.preventDefault()
-    const o = clickOptions()
-    void window.api.vmClick(o.button, o.clickCount)
+  if (e.key === 'Escape') {
+    if (picking) void window.api.elementStopPick()
+    elementCard.hidden = true
   }
 })
 
 function displayUrl(url: string): string {
   if (!url || url === 'about:blank' || url.startsWith('data:')) return ''
-  if (url.startsWith('file:///')) {
-    return decodeURIComponent(url.slice(8)).replace(/\//g, '\\')
-  }
+  // The home page has no address; settings is a real internal page with one.
+  if (url === 'viewer://home') return ''
+  if (url.startsWith('file:///')) return decodeURIComponent(url.slice(8)).replace(/\//g, '\\')
   return url
 }
+
+// ---------- floating element card ----------
+
+for (const close of Array.from(document.querySelectorAll<HTMLButtonElement>('.popover-close'))) {
+  close.addEventListener('click', () => { close.closest<HTMLElement>('.popover, .element-card')!.hidden = true })
+}
+
+// ---------- bookmarks (star in the address bar) ----------
+
+function updateStar(): void {
+  const active = !!bookmarkedUrl && bookmarks.some(b => b.url === bookmarkedUrl)
+  star.classList.toggle('active', active)
+  star.title = active ? '取消收藏当前页 (Ctrl+D)' : '收藏当前页 (Ctrl+D)'
+}
+
+async function toggleBookmark(): Promise<void> {
+  const result = await window.api.bookmarkToggle()
+  bookmarks = result.bookmarks
+  bookmarkedUrl = result.bookmarked ? activeUrl() : ''
+  updateStar()
+}
+
+function activeUrl(): string {
+  return tabs.find(t => t.id === activeId)?.url ?? ''
+}
+
+$('bookmark').addEventListener('click', () => void toggleBookmark())
+
+// ---------- element selection ----------
+
+function setPicking(active: boolean): void {
+  picking = active
+  $('pickElement').classList.toggle('active', active)
+  pickHint.hidden = !active
+  if (active) elementCard.hidden = true
+}
+
+$('pickElement').addEventListener('click', () => {
+  if (picking) void window.api.elementStopPick()
+  else {
+    void window.api.elementStartPick().then(ok => {
+      if (!ok) showMessage('当前页面不支持元素选择')
+    })
+  }
+})
+
+window.api.onElementMode(setPicking)
+window.api.onElementPicked(element => {
+  renderElement(element)
+  elementCard.hidden = false
+})
+
+function renderElement(element: InspectedElement): void {
+  const body = $('elementBody')
+  body.replaceChildren()
+  const lines: [string, string][] = [
+    ['标签', element.tag ? `<${element.tag}>` : '—'],
+    ['ID', element.id || '—'],
+    ['类名', element.className || '—'],
+    ['尺寸', element.width || element.height ? `${element.width} × ${element.height}` : '—'],
+    ['文本', element.text || '—']
+  ]
+  for (const [key, value] of lines) {
+    const line = make('div', 'element-line')
+    line.append(make('span', 'key', key), make('span', 'val', value))
+    body.append(line)
+  }
+  body.append(make('div', 'element-code', element.outerHTML || '—'))
+  const actions = make('div', 'element-actions')
+  const copy = make('button', 'mini', '复制 HTML')
+  copy.addEventListener('click', () => {
+    if (navigator.clipboard) {
+      void navigator.clipboard.writeText(element.outerHTML).catch(() => copyFallback(element.outerHTML))
+    } else {
+      copyFallback(element.outerHTML)
+    }
+  })
+  actions.append(copy)
+  body.append(actions)
+}
+
+function copyFallback(text: string): void {
+  const input = make('textarea', '', text)
+  input.style.position = 'fixed'
+  input.style.opacity = '0'
+  document.body.append(input)
+  input.select()
+  document.execCommand('copy')
+  input.remove()
+}
+
+// ---------- screenshot (UI lives on the topmost cursor layer) ----------
+
+$('screenshot').addEventListener('click', () => void window.api.screenshotBegin())
+
+function showMessage(message: string): void {
+  $('elementBody').textContent = message
+  elementCard.hidden = false
+}
+
+// The startup tab is created before this renderer loads, so its change event
+// was missed. Pull the current list once on startup.
+void Promise.all([
+  window.api.tabList?.() ?? Promise.resolve([]),
+  window.api.tabHasPage?.() ?? Promise.resolve(false),
+  window.api.bookmarkList?.() ?? Promise.resolve([])
+]).then(([list, hasPage, savedBookmarks]) => {
+  tabs = list
+  activeId = list[0]?.id ?? null
+  bookmarks = savedBookmarks
+  bookmarkedUrl = activeUrl()
+  urlInput.value = displayUrl(bookmarkedUrl)
+  renderTabs()
+  updateStar()
+  $<HTMLElement>('empty-page').style.display = hasPage ? 'none' : 'flex'
+  $<HTMLElement>('page-slot').style.display = hasPage ? 'block' : 'none'
+})
 
 window.api.onTabsChange(state => {
   tabs = state.tabs
   activeId = state.activeId
   renderTabs()
+  $<HTMLElement>('empty-page').style.display = state.hasPage ? 'none' : 'flex'
+  $<HTMLElement>('page-slot').style.display = state.hasPage ? 'block' : 'none'
   const active = tabs.find(t => t.id === activeId)
-  // Always follow the active tab, even if the old URL is still focused.
   if (document.activeElement === urlInput) urlInput.blur()
   urlInput.value = displayUrl(active?.url ?? '')
-  currentPage.textContent = active?.title && active.title !== '新标签页' ? active.title : '当前页面'
+  bookmarkedUrl = active?.url ?? ''
+  updateStar()
   document.title = active?.title && active.title !== '新标签页'
     ? `${active.title} - Viewer` : 'Viewer'
 })
-
-window.api.onCursorMove(point => {
-  pos.textContent = `${Math.round(point.x)}, ${Math.round(point.y)}`
-})
-
-window.api.onCursorVisible(visible => {
-  ($('visible') as HTMLInputElement).checked = visible
-})
-
-void window.api.vmPosition().then(p => {
-  pos.textContent = `${Math.round(p.x)}, ${Math.round(p.y)}`
-})
-
-// ---------- resource analysis ----------
-
-let resources: ResourceRecord[] = []
-let resFilter = 'all'
-const resList = $<HTMLElement>('resList')
-const resDetail = $<HTMLElement>('resDetail')
-
-function resMatches(record: ResourceRecord): boolean {
-  if (resFilter === 'all') return true
-  const type = record.resourceType.toLowerCase()
-  if (resFilter === 'xhr') return type === 'xhr' || type === 'fetch'
-  if (resFilter === 'other') {
-    return !['xhr', 'fetch', 'document', 'script', 'stylesheet', 'image'].includes(type)
-  }
-  return type === resFilter
-}
-
-function renderResources(): void {
-  resList.innerHTML = ''
-  const shown = resources.filter(resMatches)
-  for (const record of shown.slice(0, 200)) {
-    const row = document.createElement('div')
-    row.className = 'res-row'
-
-    const method = document.createElement('span')
-    method.className = 'res-method'
-    method.textContent = record.method
-
-    const status = document.createElement('span')
-    status.className = 'res-status' + (record.status >= 400 || record.status === 0 ? ' err' : '')
-    status.textContent = record.status ? String(record.status) : 'ERR'
-
-    const url = document.createElement('span')
-    url.className = 'res-url'
-    url.textContent = record.url
-    url.title = record.url
-
-    const time = document.createElement('span')
-    time.className = 'res-time'
-    time.textContent = `${Math.round(record.durationMs)}ms`
-
-    row.append(method, status, url, time)
-    row.addEventListener('click', () => {
-      resDetail.textContent =
-        `${record.method} ${record.url}\n` +
-        `status: ${record.status} ${record.statusText}\n` +
-        `type: ${record.resourceType}  mime: ${record.mimeType || '-'}\n` +
-        `duration: ${Math.round(record.durationMs)}ms  cache: ${record.fromCache ? 'yes' : 'no'}\n` +
-        `tab webContents: ${record.webContentsId}` +
-        (record.error ? `\nerror: ${record.error}` : '')
-    })
-    resList.append(row)
-  }
-}
-
-$('resFilter').addEventListener('change', e => {
-  resFilter = (e.target as HTMLSelectElement).value
-  renderResources()
-})
-$('resClear').addEventListener('click', () => {
-  void window.api.resourcesClear?.()
-  resources = []
-  renderResources()
-  resDetail.textContent = '点击请求查看详情'
-})
-
-window.api.onResourcesUpdate?.(records => {
-  resources = records
-  renderResources()
-})
-void window.api.resourcesList?.()?.then(records => {
-  resources = records
-  renderResources()
-})
-

@@ -1,0 +1,26 @@
+* { box-sizing: border-box; scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; }
+body { margin: 0; background: #f7f8fa; color: #212529; font: 14px/1.6 ui-sans-serif, system-ui, "Microsoft YaHei", sans-serif; }
+.list-page { max-width: 860px; margin: 0 auto; padding: 32px 24px 60px; }
+h1 { font-size: 24px; font-weight: 600; margin: 0 0 6px; }
+.hint { font-size: 12px; color: #adb5bd; margin: 0 0 20px; }
+.toolbar { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #e3e7ee; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; }
+.toolbar input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid #cbd2dd; border-radius: 6px; outline: none; font: inherit; font-size: 13px; }
+.toolbar input:focus { border-color: #4263eb; }
+.count { font-size: 12px; color: #868e96; white-space: nowrap; }
+button { padding: 6px 12px; border: 1px solid #cbd2dd; background: #fff; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; color: #495057; }
+button:hover { background: #f1f3f5; }
+button.danger:hover { background: #ffe3e3; color: #e03131; border-color: #ffc9c9; }
+button.confirm, button.confirm:hover { background: #e03131; color: #fff; border-color: #e03131; }
+.card { background: #fff; border: 1px solid #e3e7ee; border-radius: 10px; padding: 4px 0; }
+.empty { padding: 48px 20px; text-align: center; color: #adb5bd; font-size: 13px; }
+.entry { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #f1f3f5; cursor: pointer; }
+.entry:last-child { border-bottom: 0; }
+.entry:hover { background: #f8f9fa; }
+.fav { width: 30px; height: 30px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 7px; background: #e7f1ff; color: #4263eb; font-weight: 600; }
+.info { flex: 1; min-width: 0; }
+.title { font-size: 13px; color: #212529; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.url { font-size: 11px; color: #868e96; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta { font-size: 11px; color: #adb5bd; white-space: nowrap; flex: none; }
+.remove { width: 26px; height: 26px; padding: 0; border: 0; color: #adb5bd; font-size: 15px; }
+.remove:hover { color: #e03131; background: #ffe3e3; }
