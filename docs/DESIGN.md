@@ -73,7 +73,6 @@ Electron 主进程
 
 ## 7. 已知限制
 
-- 光标 View 没有鼠标穿透 API（Electron 45 的 `WebContentsView` 不支持 `setIgnoreMouseEvents`），光标所在的 34×28 区域会拦截真实鼠标。
 - 文件选择需要可信用户手势触发。
 - `confirm()` 固定返回 `false`，依赖「确定」分支的业务逻辑需改为页面内弹框。
 - 多用户隔离、响应体分析、权限请求的接管尚未实现，评估见项目交接文档。

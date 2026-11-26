@@ -126,7 +126,6 @@ Viewer 会在不注入页面脚本的前提下尽量对齐 Chrome，实现见 `s
 ## 已知限制
 
 - `alert` / `confirm` 已通过 `disableDialogs` 直接禁用：`alert` 立即返回，`confirm` 固定返回 `false`，`prompt` 返回 `null`。需要用户确认的业务逻辑应改用页面内自定义弹框。
-- 虚拟光标所在的约 34×28 区域会拦截真实鼠标（该 Electron 版本的 View 不支持鼠标穿透）；网页其余区域真实鼠标正常。
 - 资源分析只记录请求元数据，不记录响应 body——读取 body 需要 CDP，按设计边界未启用。
 - 文件选择器需要可信用户手势触发；脚本式 `input.click()` 不算手势。
 - 仅支持 Windows（界面与输入注入依赖 Electron Windows 行为）。

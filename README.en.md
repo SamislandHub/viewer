@@ -123,7 +123,6 @@ Still different, and only fixable by injecting a script:
 ## Known limitations
 
 - `alert` / `confirm` are disabled via `disableDialogs`: `alert` returns immediately, `confirm` always returns `false`, and `prompt` returns `null`. Confirmation flows should use in-page dialogs.
-- The small cursor area (about 34×28 px) intercepts real mouse events; the rest of the page behaves normally.
 - Resource analysis records metadata only; response bodies would require CDP and are intentionally out of scope.
 - The file chooser requires a trusted user gesture; scripted `input.click()` does not trigger it.
 - Windows only.
