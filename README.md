@@ -8,7 +8,7 @@
 
 ![Viewer 主界面：标签页、网页区与右侧工具面板](docs/screenshots/01-browser.png)
 
-![应用内文件选择器](docs/screenshots/02-file-picker.png)
+![交互测试页：网页区与右侧工具面板](docs/screenshots/02-test-page.png)
 
 ## 功能
 
