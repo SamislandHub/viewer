@@ -1,0 +1,8 @@
+node_modules/
+out/
+dist/
+logs/
+data/
+.acl-recovery/
+*.log
+.DS_Store

@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>交互测试页 - 原生窗口行为</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin:0; padding:16px 20px 200px; font:14px/1.6 ui-sans-serif,system-ui,"Microsoft YaHei",sans-serif; background:#f7f8fa; color:#212529; }
+  h1 { font-size:20px; }
+  h2 { font-size:15px; margin:24px 0 8px; padding-bottom:5px; border-bottom:1px solid #dee2e6; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
+  .card { background:#fff; border:1px solid #e3e7ee; border-radius:8px; padding:12px; }
+  button, input, select, textarea { font:inherit; }
+  button { padding:6px 12px; margin:3px 4px 3px 0; border:1px solid #cbd2dd; background:#fff; border-radius:6px; cursor:pointer; }
+  button:hover { background:#f1f3f5; }
+  input[type=text], input[type=number], textarea, select { padding:5px 8px; border:1px solid #cbd2dd; border-radius:6px; }
+  .box { padding:18px; border:1px dashed #adb5bd; border-radius:8px; background:#fff; margin:6px 0; user-select:none; }
+  #hoverBox:hover { background:#fff3bf; }
+  #wheelBox { height:120px; overflow:auto; background:linear-gradient(#e7f5ff,#fff); }
+  #wheelBox .inner { height:600px; padding:10px; }
+  #dropZone.dragover { background:#d3f9d8; }
+  #canvasBox { background:#fff; cursor:crosshair; }
+  #log { position:fixed; left:0; right:0; bottom:0; height:180px; overflow:auto; background:#111827; color:#d1fae5;
+         font:12px/1.5 ui-monospace,Consolas,monospace; padding:10px 14px; margin:0; white-space:pre-wrap; z-index:9999; }
+  .hint { color:#868e96; font-size:12px; }
+  label { display:inline-block; margin:4px 10px 4px 0; }
+</style>
+</head>
+<body>
+<h1>交互测试页</h1>
+<p class="hint">用于测试文件选择、原生弹窗、链接、鼠标/滚轮、拖拽、剪贴板等与原生窗口有交互的行为。所有事件会记录到底部日志。</p>
+
+<h2>1. 文件选择（原生文件对话框）</h2>
+<div class="grid">
+  <div class="card">
+    <b>单文件</b><br />
+    <input type="file" id="fileSingle" /><br />
+    <b>多文件</b><br />
+    <input type="file" id="fileMulti" multiple /><br />
+    <b>仅图片</b><br />
+    <input type="file" id="fileImage" accept="image/*" /><br />
+    <b>仅 HTML（.html）</b><br />
+    <input type="file" id="fileHtml" accept=".html" /><br />
+    <b>仅 HTML/TXT（.html,.txt）</b><br />
+    <input type="file" id="fileHtmlTxt" accept=".html,.txt" /><br />
+    <b>选择文件夹</b><br />
+    <input type="file" id="fileDir" webkitdirectory directory />
+  </div>
+  <div class="card">
+    <b>拖拽文件到此处</b>
+    <div class="box" id="dropZone">把文件拖到这里</div>
+    <button id="clearFiles">清空文件日志</button>
+  </div>
+</div>
+
+<h2>2. 原生弹窗</h2>
+<div class="card">
+  <button id="btnAlert">alert</button>
+  <button id="btnConfirm">confirm</button>
+  <button id="btnPrompt">prompt</button>
+  <button id="btnBeforeUnload">切换 beforeunload 拦截（当前：<span id="buState">关</span>）</button>
+  <button id="btnPrint">window.print()</button>
+</div>
+
+<h2>3. 链接 / 新窗口 / 下载</h2>
+<div class="card">
+  <a href="https://www.bing.com/" target="_blank">target=_blank 链接</a> ·
+  <a href="https://www.bing.com/" target="_self">target=_self 链接</a><br />
+  <button id="btnOpen">window.open(url)</button>
+  <button id="btnOpenBlank">window.open(url, '_blank')</button>
+  <a id="downloadLink" href="data:text/plain;charset=utf-8,hello%20download" download="test.txt">下载文件（a download）</a><br />
+  <button id="btnClose">window.close()</button>
+  <button id="btnFocus">window.focus()</button>
+</div>
+
+<h2>4. 鼠标事件</h2>
+<div class="grid">
+  <div class="card">
+    <b>hover / click / dblclick</b>
+    <div class="box" id="hoverBox">鼠标移入/移出/单击/双击/右键这里</div>
+    <span>单击 <b id="cClick">0</b> · 双击 <b id="cDbl">0</b> · 右键 <b id="cCtx">0</b></span>
+  </div>
+  <div class="card">
+    <b>滚轮</b>
+    <div id="wheelBox"><div class="inner">滚动这个区域（内容足够高）</div></div>
+  </div>
+  <div class="card">
+    <b>Canvas 坐标</b>
+    <canvas id="canvasBox" width="240" height="130"></canvas>
+    <div id="canvasInfo" class="hint">点击画布显示坐标</div>
+  </div>
+</div>
+
+<h2>5. 表单控件（原生选择器）</h2>
+<div class="card">
+  <label>文本 <input type="text" id="tText" value="hello" /></label>
+  <label>数字 <input type="number" id="tNum" value="3" /></label>
+  <label>日期 <input type="date" id="tDate" /></label>
+  <label>时间 <input type="time" id="tTime" /></label>
+  <label>颜色 <input type="color" id="tColor" value="#ff9500" /></label>
+  <label>范围 <input type="range" id="tRange" /></label>
+  <label>复选框 <input type="checkbox" id="tCheck" /></label>
+  <label>单选 <input type="radio" name="r" /> A <input type="radio" name="r" /> B</label>
+  <label>下拉 <select id="tSelect"><option>一</option><option>二</option></select></label><br />
+  <textarea id="tArea" rows="2" cols="30">textarea</textarea><br />
+  <button id="btnSubmit">提交表单（GET 导航）</button>
+  <button id="btnReset">重置</button>
+  <form id="testForm" action="?submitted=1" method="get" style="display:none"><input id="hiddenField" name="q" value="test" /></form>
+</div>
+
+<h2>6. 剪贴板 / 权限 / 其他</h2>
+<div class="card">
+  <button id="btnCopy">写入剪贴板</button>
+  <button id="btnPaste">读取剪贴板</button>
+  <button id="btnFullscreen">请求全屏</button>
+  <button id="btnNotify">请求通知权限</button>
+  <button id="btnGeo">获取地理定位</button>
+  <button id="btnMedia">请求摄像头/麦克风</button>
+  <span id="permResult" class="hint"></span>
+</div>
+
+<h2>7. iframe</h2>
+<div class="card">
+  <iframe id="testFrame" src="data:text/html,&lt;body style='font:14px sans-serif;padding:10px'&gt;iframe 内容&lt;button onclick='parent.log(&quot;iframe button clicked&quot;)'&gt;点我&lt;/button&gt;&lt;/body&gt;" width="100%" height="90" style="border:1px solid #dee2e6;border-radius:6px"></iframe>
+</div>
+
+<h2>8. 键盘事件</h2>
+<div class="card">
+  <input type="text" id="keyInput" placeholder="在这里按键，记录 keydown/keyup" style="width:320px" />
+  <button id="btnKeys">清空计数</button>
+  <span id="keyCount" class="hint">keydown 0 / keyup 0</span>
+</div>
+
+<pre id="log"></pre>
+
+<script>
+  const $ = id => document.getElementById(id)
+  const logEl = $('log')
+  let logCount = 0
+  function log(type, detail = '') {
+    const t = new Date().toISOString().slice(11, 23)
+    logEl.textContent += `${t}  ${type.padEnd(18)} ${detail}\n`
+    logEl.scrollTop = logEl.scrollHeight
+    logCount++
+  }
+  window.log = log
+  log('page', 'loaded, URL=' + location.href)
+
+  // 1. file inputs
+  const fileIds = ['fileSingle', 'fileMulti', 'fileImage', 'fileHtml', 'fileHtmlTxt', 'fileDir']
+  for (const id of fileIds) {
+    $(id).addEventListener('change', e => {
+      const files = [...e.target.files].map(f => `${f.name}(${f.size})`)
+      log('file:' + id, files.length ? files.join(', ') : '(none)')
+    })
+  }
+  $('clearFiles').onclick = () => { logEl.textContent = ''; logCount = 0 }
+
+  // drag & drop
+  const drop = $('dropZone')
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover') })
+  drop.addEventListener('dragleave', () => drop.classList.remove('dragover'))
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('dragover')
+    log('drop', [...e.dataTransfer.files].map(f => f.name).join(', ') || '(no files)')
+  })
+
+  // 2. native dialogs
+  $('btnAlert').onclick = () => { log('before alert'); alert('这是一个 alert') ; log('after alert') }
+  $('btnConfirm').onclick = () => { const r = confirm('确认吗？'); log('confirm', String(r)) }
+  $('btnPrompt').onclick = () => { const r = prompt('输入内容', '默认值'); log('prompt', String(r)) }
+  let blockUnload = false
+  $('btnBeforeUnload').onclick = () => {
+    blockUnload = !blockUnload
+    $('buState').textContent = blockUnload ? '开' : '关'
+    log('beforeunload', blockUnload ? 'enabled' : 'disabled')
+  }
+  window.addEventListener('beforeunload', e => {
+    if (!blockUnload) return
+    e.preventDefault(); e.returnValue = ''
+    log('beforeunload', 'fired')
+  })
+  $('btnPrint').onclick = () => { log('print called'); window.print() }
+
+  // 3. links / window
+  $('btnOpen').onclick = () => { log('window.open'); window.open('https://www.bing.com/') }
+  $('btnOpenBlank').onclick = () => { log("window.open _blank"); window.open('https://www.bing.com/', '_blank') }
+  $('downloadLink').onclick = () => log('download link clicked')
+  $('btnClose').onclick = () => { log('window.close called'); window.close() }
+  $('btnFocus').onclick = () => { log('window.focus called'); window.focus() }
+
+  // 4. mouse
+  const hover = $('hoverBox')
+  let clicks = 0, dbl = 0, ctx = 0
+  hover.addEventListener('mouseenter', () => log('mouseenter'))
+  hover.addEventListener('mouseleave', () => log('mouseleave'))
+  hover.addEventListener('mousemove', () => { /* high frequency, intentionally not logged */ })
+  hover.addEventListener('pointerdown', e => log('pointerdown', e.button === 2 ? 'right' : 'left'))
+  hover.addEventListener('click', e => { clicks++; $('cClick').textContent = clicks; log('click', `detail=${e.detail}`) })
+  hover.addEventListener('dblclick', () => { dbl++; $('cDbl').textContent = dbl; log('dblclick') })
+  hover.addEventListener('contextmenu', e => { e.preventDefault(); ctx++; $('cCtx').textContent = ctx; log('contextmenu') })
+  $('wheelBox').addEventListener('wheel', e => log('wheel', `deltaY=${e.deltaY} deltaX=${e.deltaX}`), { passive: true })
+
+  const canvas = $('canvasBox')
+  const cx = canvas.getContext('2d')
+  cx.fillStyle = '#e9ecef'; cx.fillRect(0, 0, canvas.width, canvas.height)
+  cx.fillStyle = '#495057'; cx.font = '14px sans-serif'; cx.fillText('click here', 90, 65)
+  canvas.addEventListener('mousedown', e => {
+    const r = canvas.getBoundingClientRect()
+    const x = Math.round(e.clientX - r.left), y = Math.round(e.clientY - r.top)
+    $('canvasInfo').textContent = `坐标 x=${x} y=${y}`
+    log('canvas mousedown', `${x},${y}`)
+  })
+
+  // 5. form
+  $('btnSubmit').onclick = () => { $('hiddenField').value = $('tText').value; $('testForm').submit() }
+  $('btnReset').onclick = () => location.reload()
+  const formIds = ['tText','tNum','tDate','tTime','tColor','tRange','tCheck','tSelect','tArea']
+  for (const id of formIds) {
+    $(id).addEventListener('change', e => log('form change:' + id, String(e.target.value)))
+  }
+
+  // 6. clipboard / permissions
+  $('btnCopy').onclick = async () => {
+    try { await navigator.clipboard.writeText('Viewer 测试剪贴板'); log('clipboard write', 'ok') }
+    catch (e) { log('clipboard write FAILED', String(e)) }
+  }
+  $('btnPaste').onclick = async () => {
+    try { const t = await navigator.clipboard.readText(); log('clipboard read', t) }
+    catch (e) { log('clipboard read FAILED', String(e)) }
+  }
+  $('btnFullscreen').onclick = async () => {
+    try { await document.documentElement.requestFullscreen(); log('fullscreen', 'granted') }
+    catch (e) { log('fullscreen FAILED', String(e)) }
+  }
+  $('btnNotify').onclick = async () => {
+    try { const r = await Notification.requestPermission(); $('permResult').textContent = 'notify=' + r; log('notification', r) }
+    catch (e) { log('notification FAILED', String(e)) }
+  }
+  $('btnGeo').onclick = () => {
+    navigator.geolocation.getCurrentPosition(
+      p => log('geolocation', `${p.coords.latitude},${p.coords.longitude}`),
+      e => log('geolocation FAILED', e.message), { timeout: 5000 }
+    )
+  }
+  $('btnMedia').onclick = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+      log('media', 'granted tracks=' + s.getTracks().length)
+      s.getTracks().forEach(t => t.stop())
+    } catch (e) { log('media FAILED', String(e)) }
+  }
+
+  // 8. keyboard
+  let kd = 0, ku = 0
+  $('keyInput').addEventListener('keydown', e => { kd++; $('keyCount').textContent = `keydown ${kd} / keyup ${ku}`; if (kd <= 5) log('keydown', e.key) })
+  $('keyInput').addEventListener('keyup', e => { ku++; $('keyCount').textContent = `keydown ${kd} / keyup ${ku}` })
+  $('btnKeys').onclick = () => { kd = ku = 0; $('keyCount').textContent = 'keydown 0 / keyup 0' }
+</script>
+</body>
+</html>
