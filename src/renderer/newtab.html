@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>新标签页</title>
+  <link rel="stylesheet" href="./src/newtab.css" />
+</head>
+<body>
+  <main>
+    <h1>新标签页</h1>
+    <p class="hint">在地址栏输入网址或搜索词开始浏览</p>
+
+    <section>
+      <div class="section-head">
+        <h2>收藏夹</h2>
+        <button id="openBookmarks">查看全部</button>
+      </div>
+      <div id="bookmarkList" class="grid"></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>历史记录</h2>
+        <button id="openHistory">查看全部</button>
+      </div>
+      <div id="historyList" class="grid"></div>
+    </section>
+  </main>
+  <script type="module" src="./src/newtab.ts"></script>
+</body>
+</html>

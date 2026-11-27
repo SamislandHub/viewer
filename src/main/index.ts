@@ -1,7 +1,8 @@
 import { app, BrowserWindow, ClipboardItem, clipboard, ipcMain, nativeImage, screen, session, shell, type NativeImage } from 'electron'
 import { basename, join, resolve } from 'node:path'
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
-import { readdir } from 'node:fs/promises'
+import { appendFileSync, cpSync, existsSync, mkdirSync, renameSync, rmSync, statfsSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { readdir, readFile, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { TabbedBrowser } from './browser'
 import { VirtualMouse } from './virtual-mouse'
 import { VirtualKeyboard } from './virtual-keyboard'
@@ -46,12 +47,15 @@ function normalizeInput(input: string): string {
   if (!value) return ''
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value
 
-  // Local paths, e.g. F:\dir\file.html or \\server\share\file.html
-  if (/^[a-z]:[\\/]/i.test(value)) {
+  // Local paths: open the built-in file manager / preview page.
+  // e.g. F:\dir\file.html or \\server\share\file.html
+  if (/^[a-z]:[\\/]/i.test(value) || /^\\\\/.test(value)) {
+    const path = value.replace(/\//g, '\\')
+    if (existsSync(path)) {
+      const scheme = statSync(path).isDirectory() ? 'files' : 'preview'
+      return `viewer://${scheme}/${encodeURIComponent(path)}`
+    }
     return 'file:///' + encodeURI(value.replace(/\\/g, '/'))
-  }
-  if (/^\\\\/.test(value)) {
-    return 'file://' + encodeURI(value.replace(/\\/g, '/').slice(2))
   }
 
   if (/^[\w-]+(\.[\w-]+)+(:\d+)?(\/|$)/.test(value)) return `https://${value}`
@@ -180,6 +184,29 @@ function bootstrap(): void {
   const send = (channel: string, payload?: unknown) => {
     if (!renderer().isDestroyed()) renderer().send(channel, payload)
   }
+  const sendToolbar = (channel: string, payload?: unknown) => {
+    const wc = browser.toolbarWebContents()
+    if (wc && !wc.isDestroyed()) wc.send(channel, payload)
+  }
+  // Physical keyboard events can land in a focused child WebContentsView
+  // instead of the shell renderer. While the address bar is being edited,
+  // intercept them on the page and forward to the shell input.
+  let urlInputFocused = false
+  let lastForwardedAt = 0
+  const handleBeforeInput = (event: Electron.Event, input: Electron.Input): void => {
+    if (!urlInputFocused || input.type !== 'keyDown') return
+    const key = input.key
+    if (!key) return
+    // The same key can surface on both the host webContents and a child view.
+    if (Date.now() - lastForwardedAt < 30) return
+    lastForwardedAt = Date.now()
+    event.preventDefault()
+    if (key === 'Enter') sendToolbar('input:enter')
+    else if (key === 'Backspace' || key === 'Delete' || key.startsWith('Arrow')) sendToolbar('input:key', key)
+    else if (key.length === 1 && !input.control && !input.meta && !input.alt) sendToolbar('input:text', key)
+  }
+  browser.onBeforeInput = handleBeforeInput
+  browser.window.webContents.on('before-input-event', handleBeforeInput)
   downloads.onUpdate = list => browser.broadcast('downloads:update', list)
   history.onUpdate = list => browser.broadcast('history:update', list)
   bookmarks.onUpdate = list => browser.broadcast('bookmarks:update', list)
@@ -198,7 +225,7 @@ function bootstrap(): void {
   }
 
   browser.onTabsChange = (tabs, activeId, hasPage) => {
-    send('tabs:change', { tabs, activeId, hasPage })
+    browser.broadcast('tabs:change', { tabs, activeId, hasPage })
     const wcId = activeWebContentsId()
     if (wcId) sendControls('resources:update', resources.list(wcId))
     if (activeId !== lastActiveId) {
@@ -234,6 +261,10 @@ function bootstrap(): void {
   ipcMain.handle('win:close', async () => browser.close())
   ipcMain.handle('win:isMaximized', async () => browser.isMaximized())
   ipcMain.handle('sidebar:width', async (_e, width: number) => browser.setLeftPanelWidth(width))
+  ipcMain.handle('shell:focus', async () => browser.focusToolbar())
+  ipcMain.handle('toolbar:focus', async () => browser.focusToolbar())
+  ipcMain.handle('sidebar:focus', async () => browser.focusSidebar())
+  ipcMain.handle('input:urlFocused', async (_e, focused: boolean) => { urlInputFocused = focused })
 
   const getSettingsState = () => ({
     console: !!controlsWindow && !controlsWindow.isDestroyed() && controlsWindow.isVisible(),
@@ -296,6 +327,63 @@ function bootstrap(): void {
       isDirectory: entry.isDirectory()
     })).sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name))
   })
+  ipcMain.handle('fs:stat', async (_e, p: string) => {
+    const s = await stat(p)
+    return { size: s.size, mtime: s.mtimeMs, isDirectory: s.isDirectory() }
+  })
+  ipcMain.handle('fs:readFile', async (_e, p: string) => {
+    const s = await stat(p)
+    if (s.size > 2 * 1024 * 1024) throw new Error('文件过大，无法预览内容')
+    return (await readFile(p)).toString('utf8')
+  })
+  ipcMain.handle('files:openExternal', async (_e, p: string) => shell.openPath(p))
+  let lastFilePath = ''
+  let lastPreviewPath = ''
+  ipcMain.handle('files:path', async () => lastFilePath)
+  ipcMain.handle('preview:path', async () => lastPreviewPath)
+  ipcMain.handle('preview:open', async (_e, path: string) => {
+    lastPreviewPath = path
+    browser.openInternalTab(`viewer://preview/${encodeURIComponent(path)}`)
+  })
+  ipcMain.handle('fs:createDir', async (_e, parent: string, name: string) => {
+    const target = join(parent, name)
+    mkdirSync(target)
+    return target
+  })
+  ipcMain.handle('fs:createFile', async (_e, parent: string, name: string) => {
+    const target = join(parent, name)
+    writeFileSync(target, '', { flag: 'wx' })
+    return target
+  })
+  ipcMain.handle('fs:rename', async (_e, from: string, to: string) => {
+    renameSync(from, to)
+    return to
+  })
+  ipcMain.handle('fs:delete', async (_e, path: string) => {
+    if (statSync(path).isDirectory()) rmSync(path, { recursive: true, force: true })
+    else unlinkSync(path)
+  })
+  ipcMain.handle('fs:copy', async (_e, from: string, to: string) => { cpSync(from, to, { recursive: true }); return to })
+  ipcMain.handle('fs:move', async (_e, from: string, to: string) => { renameSync(from, to); return to })
+  ipcMain.handle('files:navigate', async (e, path: string) => {
+    lastFilePath = path
+    browser.navigateFiles(e.sender.id, path)
+  })
+  ipcMain.handle('files:home', async () => homedir())
+  ipcMain.handle('fs:driveInfo', async () => {
+    const result: { path: string; total: number; free: number }[] = []
+    for (let code = 65; code <= 90; code++) {
+      const root = String.fromCharCode(code) + ':\\'
+      if (!existsSync(root)) continue
+      try {
+        const info = statfsSync(root)
+        result.push({ path: root, total: info.blocks * Number(info.bsize), free: info.bavail * Number(info.bsize) })
+      } catch {
+        result.push({ path: root, total: 0, free: 0 })
+      }
+    }
+    return result
+  })
   ipcMain.handle('fs:basename', async (_e, p: string) => basename(p))
   ipcMain.handle('fs:drives', async () => {
     const drives: string[] = []
@@ -319,7 +407,13 @@ function bootstrap(): void {
   // navigation
   ipcMain.handle('browser:load', async (_e, input: string) => {
     const url = normalizeInput(input)
+    if (url.startsWith('viewer://files/')) {
+      try { lastFilePath = decodeURIComponent(url.slice('viewer://files/'.length)) } catch { /* ignore */ }
+    } else if (url.startsWith('viewer://preview/')) {
+      try { lastPreviewPath = decodeURIComponent(url.slice('viewer://preview/'.length)) } catch { /* ignore */ }
+    }
     if (url) await browser.load(url)
+    if (url.startsWith('viewer://files') || url.startsWith('viewer://preview')) browser.updateActiveFileUrl(url)
   })
   ipcMain.handle('browser:back', async () => browser.back())
   ipcMain.handle('browser:forward', async () => browser.forward())
@@ -473,8 +567,17 @@ function bootstrap(): void {
 
   const initialUrl = process.env.AI_BROWSER_INITIAL_URL
   if (initialUrl) {
-    log('loading initial URL: ' + initialUrl)
-    void browser.load(initialUrl).catch(err => log('initial URL FAILED: ' + String(err)))
+    const url = normalizeInput(initialUrl)
+    log('loading initial URL: ' + initialUrl + ' -> ' + url)
+    for (const [prefix, assign] of [
+      ['viewer://files/', (p: string) => { lastFilePath = p }],
+      ['viewer://preview/', (p: string) => { lastPreviewPath = p }]
+    ] as const) {
+      if (url.startsWith(prefix)) {
+        try { assign(decodeURIComponent(url.slice(prefix.length))) } catch { /* ignore */ }
+      }
+    }
+    void browser.load(url).catch(err => log('initial URL FAILED: ' + String(err)))
   }
 
   // electron-vite sets ELECTRON_RENDERER_URL with the actual port (5173/5174...).
@@ -482,26 +585,45 @@ function bootstrap(): void {
   const rendererUrl = process.env.AI_BROWSER_RENDERER_URL
     || process.env.ELECTRON_RENDERER_URL
     || `http://localhost:${process.env.VITE_PORT || '5173'}`
-  const localRenderer = () => browser.window.loadFile(join(__dirname, '../renderer/index.html'))
   const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
     Promise.race([
       promise,
       new Promise<T>((_resolve, reject) => setTimeout(() => reject(new Error('renderer load timeout')), ms))
     ])
-  const load = withTimeout(browser.window.loadURL(rendererUrl), 4000).catch(error => {
-    log(`renderer URL failed (${rendererUrl}): ${String(error)}, falling back to built files`)
-    return localRenderer()
-  })
-  void load.then(
-    () => {
-      log('renderer loaded')
-      browser.sendPageToBack()
-    },
-    err => log('renderer load FAILED: ' + String(err))
-  )
+  const loadShell = async (): Promise<boolean> => {
+    try {
+      await withTimeout(browser.window.loadURL(rendererUrl), 4000)
+      return true
+    } catch (error) {
+      log(`renderer URL failed (${rendererUrl}): ${String(error)}, falling back to built files`)
+      await browser.window.loadFile(join(__dirname, '../renderer/index.html'))
+      return false
+    }
+  }
+  void loadShell().then(fromUrl => {
+    log('renderer loaded from ' + (fromUrl ? 'dev server' : 'built files'))
+    browser.sendPageToBack()
+    const built = (name: string) => join(__dirname, '../renderer', name)
+    const fromBase = (name: string): string => {
+      try { return new URL(name, rendererUrl).toString() }
+      catch { return rendererUrl.replace(/\/?$/, '/' + name) }
+    }
+    if (fromUrl) {
+      void withTimeout(browser.loadToolbar(fromBase('toolbar.html')), 4000).catch(() => browser.loadToolbarFile(built('toolbar.html')))
+      void withTimeout(browser.loadSidebar(fromBase('sidebar.html')), 4000).catch(() => browser.loadSidebarFile(built('sidebar.html')))
+    } else {
+      void browser.loadToolbarFile(built('toolbar.html'))
+      void browser.loadSidebarFile(built('sidebar.html'))
+    }
+  }).catch(err => log('renderer load FAILED: ' + String(err)))
 
   browser.window.webContents.on('did-finish-load', () => browser.sendPageToBack())
 
+  browser.window.on('focus', () => {
+    // The independent controls window can keep Electron's internal focus even
+    // after Windows switches foreground to us. Reclaim it here.
+    browser.window.webContents.focus()
+  })
   browser.window.on('closed', () => {
     log('window closed')
     mouse.release()

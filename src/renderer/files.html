@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>文件管理</title>
+  <link rel="stylesheet" href="./src/files.css" />
+</head>
+<body>
+  <aside id="sidebar">
+    <div class="side-section">
+      <div class="side-title">快速访问 <span>⌄</span></div>
+      <div id="quickList"></div>
+    </div>
+    <div class="side-section">
+      <div class="side-title">此电脑 <span>⌄</span></div>
+      <div id="driveList"></div>
+    </div>
+  </aside>
+  <section id="main">
+    <div id="actions">
+      <button id="up" class="cmd-btn" title="上一级"><span class="ico">↑</span>上一级</button>
+      <span class="sep"></span>
+      <div class="new-wrap">
+        <button id="newBtn" class="cmd-btn"><span class="ico">＋</span>新建<span class="caret">⌄</span></button>
+        <div id="newMenu" class="new-menu" hidden>
+          <button id="newFolder">文件夹</button>
+          <button id="newFile">文本文档</button>
+        </div>
+      </div>
+      <span class="sep"></span>
+      <button id="cut" class="cmd-btn" title="剪切"><span class="ico">✂</span>剪切</button>
+      <button id="copy" class="cmd-btn" title="复制"><span class="ico">⧉</span>复制</button>
+      <button id="paste" class="cmd-btn" title="粘贴"><span class="ico">📋</span>粘贴</button>
+      <button id="rename" class="cmd-btn" title="重命名"><span class="ico">✎</span>重命名</button>
+      <span class="sep"></span>
+      <button id="delete" class="cmd-btn danger" title="删除"><span class="ico">🗑</span>删除</button>
+      <span class="sep"></span>
+      <button id="refresh" class="cmd-btn" title="刷新"><span class="ico">↻</span>刷新</button>
+    </div>
+    <div id="content"></div>
+  </section>
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box">
+      <div id="modalTitle" class="modal-title"></div>
+      <input id="modalInput" type="text" />
+      <div class="modal-actions">
+        <button id="modalCancel">取消</button>
+        <button id="modalOk" class="primary">确定</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="./src/files.ts"></script>
+</body>
+</html>

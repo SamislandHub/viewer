@@ -7,8 +7,9 @@ Viewer 是一个简单的 Agent 浏览器，网页运行在独立的 `WebContent
 ```
 Electron 主进程
 ├─ BrowserWindow (frame:false)         主窗口
-│  ├─ 外壳 renderer：工具栏（元素选择 / 截图 / 收藏 / 下载）/ 左侧垂直标签
-│  ├─ 每标签一个 WebContentsView（独立 webContents）
+│  ├─ 工具栏 WebContentsView（导航 / 收藏 / 元素选择 / 截图 / 窗口控制）
+│  ├─ 侧边栏 WebContentsView（垂直标签 / 下载入口）
+│  ├─ 每标签一个 WebContentsView（独立 webContents，含 Viewer 内置页）
 │  └─ 透明光标 WebContentsView（网页上一层，约 34×28）
 ├─ BrowserWindow (frame:false)         虚拟控制台（独立、无 parent、默认隐藏）
 │  └─ 虚拟鼠标 / 虚拟键盘 / 资源分析
@@ -16,11 +17,13 @@ Electron 主进程
 ├─ ResourceMonitor                 → session.webRequest
 ├─ Fingerprint                     → app.userAgentFallback + CDP Emulation
 ├─ BookmarkStore                   → data/bookmarks.json
+├─ HistoryStore                    → data/history.json
 ├─ DownloadManager                 → session will-download → data/downloads
+├─ FileManager / Preview           → viewer://files + viewer://preview
 └─ FileChooserBridge               → CDP（文件选择 + 元素选择，共用同一调试会话）
 ```
 
-主窗口外壳渲染层在网页区域透明，网页 View 位于其下；光标 View 位于其上。窗口尺寸变化时三者同步更新 bounds。控制台是独立窗口：没有 `parent`，因此网页的原生模态框不会禁用它的输入控件。
+工具栏与侧边栏是网页层之上的独立 View，避免外壳与页面争抢焦点；地址栏编辑时物理键盘事件会被转发到工具栏 View。控制台是独立窗口：没有 `parent`，因此网页的原生模态框不会禁用它的输入控件。窗口尺寸变化时所有 View 的 bounds 同步更新。
 
 ## 2. 关键决策
 
@@ -34,6 +37,8 @@ Electron 主进程
   3. 元素选择（`Overlay.setInspectMode` + `inspectNodeRequested`，DevTools 原生高亮，不执行页面脚本）
 - **下载不弹原生框**：`will-download` 是 session 级事件，只注册一次；文件统一落到 `data/downloads`，进度由主进程推送给外壳面板。
 - **原生弹框直接禁用**：标签页 `disableDialogs: true`，不再尝试接管 alert/confirm。
+- **外壳分层**：工具栏与侧边栏用独立 WebContentsView 叠加在网页上，避免页面抢占地址栏焦点；键盘事件在 url 输入期间从子 View 转发回工具栏。
+- **本地路径进入内置页**：存在的本地路径转成 `viewer://files/<path>` 或 `viewer://preview/<path>`，不再直接 `file://` 打开；文件管理提供新建/重命名/复制/移动/删除，预览仅支持图片与 2 MB 内文本。
 
 ## 3. 输入模型
 

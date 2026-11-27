@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Viewer Sidebar</title>
+  <link rel="stylesheet" href="./src/sidebar.css" />
+</head>
+<body>
+  <aside id="left-panel">
+    <div class="panel-title">
+      <span class="title-text">标签页</span>
+      <button id="toggleSidebar" title="收起/展开侧边栏"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg></button>
+    </div>
+    <div id="tabs">
+      <div id="tabList">
+        <button id="newtab-side" title="新建标签页"><span class="plus-icon">+</span><span class="newtab-label">新建标签页</span></button>
+      </div>
+    </div>
+    <button id="openDownloads" class="side-settings" title="下载管理">
+      <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 18v2h16v-2" /></svg>
+      <span>下载管理</span>
+    </button>
+  </aside>
+  <script type="module" src="./src/sidebar.ts"></script>
+</body>
+</html>

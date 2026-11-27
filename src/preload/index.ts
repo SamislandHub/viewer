@@ -80,6 +80,14 @@ export interface BrowserAPI {
   winPin(pinned: boolean): Promise<void>
   winIsPinned(): Promise<boolean>
   sidebarWidth(width: number): Promise<void>
+  shellFocus(): Promise<void>
+  toolbarFocus(): Promise<void>
+  sidebarFocus(): Promise<void>
+  setUrlInputFocused(focused: boolean): Promise<void>
+
+  onInputText(cb: (text: string) => void): void
+  onInputKey(cb: (key: string) => void): void
+  onInputEnter(cb: () => void): void
   settingsOpen(): Promise<number>
   internalOpen(url: string): Promise<number>
   settingsState(): Promise<any>
@@ -107,7 +115,22 @@ export interface BrowserAPI {
   fileChooserRespond(backendNodeId: number, files: string[]): Promise<void>
   fsList(dir: string): Promise<{ name: string; path: string; isDirectory: boolean }[]>
   fsDrives(): Promise<string[]>
+  fsDriveInfo(): Promise<{ path: string; total: number; free: number }[]>
   fsBasename(path: string): Promise<string>
+  fsStat(path: string): Promise<{ size: number; mtime: number; isDirectory: boolean }>
+  fsReadFile(path: string): Promise<string>
+  filesOpenExternal(path: string): Promise<string>
+  filesPath(): Promise<string>
+  filesNavigate(path: string): Promise<void>
+  filesHome(): Promise<string>
+  fsCreateDir(parent: string, name: string): Promise<string>
+  fsCreateFile(parent: string, name: string): Promise<string>
+  fsRename(from: string, to: string): Promise<string>
+  fsDelete(path: string): Promise<void>
+  fsCopy(from: string, to: string): Promise<string>
+  fsMove(from: string, to: string): Promise<string>
+  previewOpen(path: string): Promise<void>
+  previewPath(): Promise<string>
 }
 
 const api: BrowserAPI = {
@@ -185,7 +208,22 @@ const api: BrowserAPI = {
   fileChooserRespond: (backendNodeId, files) => ipcRenderer.invoke('filechooser:respond', backendNodeId, files),
   fsList: dir => ipcRenderer.invoke('fs:list', dir),
   fsDrives: () => ipcRenderer.invoke('fs:drives'),
+  fsDriveInfo: () => ipcRenderer.invoke('fs:driveInfo'),
   fsBasename: path => ipcRenderer.invoke('fs:basename', path),
+  fsStat: path => ipcRenderer.invoke('fs:stat', path),
+  fsReadFile: path => ipcRenderer.invoke('fs:readFile', path),
+  filesOpenExternal: path => ipcRenderer.invoke('files:openExternal', path),
+  filesPath: () => ipcRenderer.invoke('files:path'),
+  filesNavigate: path => ipcRenderer.invoke('files:navigate', path),
+  filesHome: () => ipcRenderer.invoke('files:home'),
+  fsCreateDir: (parent, name) => ipcRenderer.invoke('fs:createDir', parent, name),
+  fsCreateFile: (parent, name) => ipcRenderer.invoke('fs:createFile', parent, name),
+  fsRename: (from, to) => ipcRenderer.invoke('fs:rename', from, to),
+  fsDelete: path => ipcRenderer.invoke('fs:delete', path),
+  fsCopy: (from, to) => ipcRenderer.invoke('fs:copy', from, to),
+  fsMove: (from, to) => ipcRenderer.invoke('fs:move', from, to),
+  previewOpen: path => ipcRenderer.invoke('preview:open', path),
+  previewPath: () => ipcRenderer.invoke('preview:path'),
 
   onControlsState: cb => ipcRenderer.on('controls:state', (_e, open) => cb(open)),
   onResourcesUpdate: cb => ipcRenderer.on('resources:update', (_e, records) => cb(records)),
@@ -199,6 +237,14 @@ const api: BrowserAPI = {
   winPin: pinned => ipcRenderer.invoke('win:pin', pinned),
   winIsPinned: () => ipcRenderer.invoke('win:isPinned'),
   sidebarWidth: width => ipcRenderer.invoke('sidebar:width', width),
+  shellFocus: () => ipcRenderer.invoke('shell:focus'),
+  toolbarFocus: () => ipcRenderer.invoke('toolbar:focus'),
+  sidebarFocus: () => ipcRenderer.invoke('sidebar:focus'),
+  setUrlInputFocused: focused => ipcRenderer.invoke('input:urlFocused', focused),
+
+  onInputText: cb => ipcRenderer.on('input:text', (_e, text) => cb(text)),
+  onInputKey: cb => ipcRenderer.on('input:key', (_e, key) => cb(key)),
+  onInputEnter: cb => ipcRenderer.on('input:enter', () => cb()),
   settingsOpen: () => ipcRenderer.invoke('settings:open'),
   internalOpen: url => ipcRenderer.invoke('internal:open', url),
   settingsState: () => ipcRenderer.invoke('settings:state'),
@@ -220,9 +266,9 @@ const internalPage = (() => {
     if (protocol === 'data:' && window.location.href.includes('cursor%7Bposition%3Aabsolute')) return true
     // Dev server (electron-vite) and built file: pages are both internal.
     if (protocol === 'http:' && /^localhost$|^127\.0\.0\.1$/.test(hostname)) {
-      return /\/(index|controls|settings|home|bookmarks|history|downloads)\.html$/.test(pathname) || pathname === '/'
+      return /\/(index|controls|settings|home|bookmarks|history|downloads|toolbar|sidebar|newtab|files|preview)\.html$/.test(pathname) || pathname === '/'
     }
-    return protocol === 'file:' && /\/(index|controls|settings|home|bookmarks|history|downloads)\.html$/i.test(pathname)
+    return protocol === 'file:' && /\/(index|controls|settings|home|bookmarks|history|downloads|toolbar|sidebar|newtab|files|preview)\.html$/i.test(pathname)
   } catch {
     return false
   }

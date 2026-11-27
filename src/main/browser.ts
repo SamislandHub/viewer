@@ -14,7 +14,8 @@ export const RIGHT_PANEL_WIDTH = 0
 function isInternalUrl(url: string): boolean {
   return url === 'viewer://settings' || url === 'viewer://home'
     || url === 'viewer://bookmarks' || url === 'viewer://history'
-    || url === 'viewer://downloads'
+    || url === 'viewer://downloads' || url === 'viewer://newtab'
+    || url.startsWith('viewer://files') || url.startsWith('viewer://preview')
 }
 
 function internalFile(url: string): string | null {
@@ -23,6 +24,9 @@ function internalFile(url: string): string | null {
   if (url === 'viewer://bookmarks') return join(__dirname, '../renderer/bookmarks.html')
   if (url === 'viewer://history') return join(__dirname, '../renderer/history.html')
   if (url === 'viewer://downloads') return join(__dirname, '../renderer/downloads.html')
+  if (url === 'viewer://newtab') return join(__dirname, '../renderer/newtab.html')
+  if (url.startsWith('viewer://files')) return join(__dirname, '../renderer/files.html')
+  if (url.startsWith('viewer://preview')) return join(__dirname, '../renderer/preview.html')
   return null
 }
 
@@ -32,6 +36,21 @@ function internalUrlFromFile(fileUrl: string): string | null {
   if (fileUrl.endsWith('/bookmarks.html')) return 'viewer://bookmarks'
   if (fileUrl.endsWith('/history.html')) return 'viewer://history'
   if (fileUrl.endsWith('/downloads.html')) return 'viewer://downloads'
+  if (fileUrl.endsWith('/newtab.html')) return 'viewer://newtab'
+  if (fileUrl.includes('/files.html')) {
+    const match = fileUrl.match(/[?&]path=([^&]*)/)
+    if (match) {
+      try { return `viewer://files/${encodeURIComponent(decodeURIComponent(match[1]))}` } catch { /* ignore */ }
+    }
+    return 'viewer://files'
+  }
+  if (fileUrl.includes('/preview.html')) {
+    const match = fileUrl.match(/[?&]path=([^&]*)/)
+    if (match) {
+      try { return `viewer://preview/${encodeURIComponent(decodeURIComponent(match[1]))}` } catch { /* ignore */ }
+    }
+    return 'viewer://preview'
+  }
   return null
 }
 
@@ -41,6 +60,9 @@ function internalTitle(url: string): string | null {
   if (url === 'viewer://bookmarks') return '收藏夹'
   if (url === 'viewer://history') return '历史记录'
   if (url === 'viewer://downloads') return '下载管理'
+  if (url === 'viewer://newtab') return '新标签页'
+  if (url.startsWith('viewer://files')) return '文件管理'
+  if (url.startsWith('viewer://preview')) return '文件预览'
   return null
 }
 
@@ -51,15 +73,6 @@ export interface TabInfo {
   loading: boolean
   favicon: string
 }
-
-/** Lightweight new-tab page so the middle slot never appears black. */
-const NEW_TAB_URL = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doctype html>
-<html><head><meta charset="utf-8"><title>新标签页</title><style>
-  html,body{margin:0;height:100%;background:#ffffff;font-family:ui-sans-serif,system-ui,"Microsoft YaHei",sans-serif}
-  .box{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#adb5bd;gap:8px}
-  .box b{font-size:22px;color:#868e96;font-weight:500}
-  .box span{font-size:12px}
-</style></head><body><div class="box"><b>新标签页</b><span>在上方输入网址或搜索内容开始浏览</span></div></body></html>`)
 
 /** Transparent overlay view: virtual cursor + in-app file picker, one layer. */
 const CURSOR_PAGE = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doctype html>
@@ -323,7 +336,6 @@ const CURSOR_PAGE = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doct
   $('shotClose').onclick=closeShot;
   document.addEventListener('keydown', ev=>{ if(ev.key==='Escape'&&shotActive) closeShot(); });
 </script></body></html>`)
-
 interface Tab {
   id: number
   view: WebContentsView
@@ -346,6 +358,8 @@ export class TabbedBrowser {
   private activeId: number | null = null
   private nextId = 1
   private cursorView: WebContentsView | null = null
+  private toolbarView: WebContentsView | null = null
+  private sidebarView: WebContentsView | null = null
   private cursorPoint: Point = { x: 0, y: 0 }
   private fileChooserOpen = false
   private screenshotOpen = false
@@ -358,6 +372,7 @@ export class TabbedBrowser {
   onInspectResult?: (element: InspectedElement) => void
   onInspectChange?: (active: boolean) => void
   onNavigate?: (url: string, title: string) => void
+  onBeforeInput?: (event: Electron.Event, input: Electron.Input) => void
 
   constructor() {
     this.window = new BrowserWindow({
@@ -382,13 +397,15 @@ export class TabbedBrowser {
     this.window.on('unmaximize', () => this.layoutActive())
     this.createHomeTab()
     this.createCursorView()
+    this.createSidebarView()
+    this.createToolbarView()
     this.window.show()
     this.window.focus()
   }
 
   // ---------- tab management ----------
 
-  createTab(url = NEW_TAB_URL, isHome = false): number {
+  createTab(url = 'viewer://newtab', isHome = false): number {
     const id = this.nextId++
     const view = new WebContentsView({
       webPreferences: {
@@ -447,6 +464,7 @@ export class TabbedBrowser {
       if (!/^(https?:|file:)/i.test(tab.url)) return
       this.onNavigate?.(tab.url, tab.title)
     }
+    wc.on('before-input-event', (event, input) => this.onBeforeInput?.(event, input))
     wc.on('did-start-loading', () => sync(true))
     wc.on('did-stop-loading', () => sync(false))
     wc.on('did-finish-load', () => {
@@ -471,8 +489,26 @@ export class TabbedBrowser {
     wc.on('did-navigate-in-page', () => sync(false))
 
     const file = internalFile(url)
-    if (file) void wc.loadFile(file)
-    else void wc.loadURL(url)
+    if (file) {
+      if (file.endsWith('/files.html') || file.endsWith('/preview.html')) {
+        let target = ''
+        for (const prefix of ['viewer://files/', 'viewer://preview/']) {
+          if (url.startsWith(prefix)) {
+            try { target = decodeURIComponent(url.slice(prefix.length)) } catch { /* ignore */ }
+            break
+          }
+        }
+        if (!target) {
+          const queryIndex = url.indexOf('?path=')
+          if (queryIndex >= 0) {
+            try { target = decodeURIComponent(url.slice(queryIndex + 6)) } catch { /* ignore */ }
+          }
+        }
+        void wc.loadFile(file, { query: target ? { path: target } : undefined })
+      } else {
+        void wc.loadFile(file)
+      }
+    } else void wc.loadURL(url)
     this.activateTab(id)
     return id
   }
@@ -517,7 +553,8 @@ export class TabbedBrowser {
       this.window.contentView.addChildView(tab.view, 0)
     }
     this.layoutActive()
-    tab.view.webContents.focus()
+    // Do not steal keyboard focus from the shell toolbar here. A child view
+    // gets focus naturally when the user clicks inside the page.
     this.emitTabs()
   }
 
@@ -532,6 +569,53 @@ export class TabbedBrowser {
     const tab = this.active()
     if (!tab) return true
     return tab.url === 'about:blank' || tab.url.startsWith('data:text/html')
+  }
+
+  /** Toolbar and sidebar are overlay views above every page view. */
+  private createToolbarView(): void {
+    const view = new WebContentsView({
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.mjs'),
+        contextIsolation: true, nodeIntegration: false, sandbox: false
+      }
+    })
+    view.setBackgroundColor('#00000000')
+    this.toolbarView = view
+    this.window.contentView.addChildView(view)
+    this.layoutActive()
+  }
+
+  private createSidebarView(): void {
+    const view = new WebContentsView({
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.mjs'),
+        contextIsolation: true, nodeIntegration: false, sandbox: false
+      }
+    })
+    view.setBackgroundColor('#00000000')
+    this.sidebarView = view
+    this.window.contentView.addChildView(view)
+    this.layoutActive()
+  }
+
+  loadToolbar(url: string): Promise<void> {
+    if (!this.toolbarView) return Promise.resolve()
+    return this.toolbarView.webContents.loadURL(url)
+  }
+
+  loadToolbarFile(path: string): Promise<void> {
+    if (!this.toolbarView) return Promise.resolve()
+    return this.toolbarView.webContents.loadFile(path)
+  }
+
+  loadSidebar(url: string): Promise<void> {
+    if (!this.sidebarView) return Promise.resolve()
+    return this.sidebarView.webContents.loadURL(url)
+  }
+
+  loadSidebarFile(path: string): Promise<void> {
+    if (!this.sidebarView) return Promise.resolve()
+    return this.sidebarView.webContents.loadFile(path)
   }
 
   /** Cursor layer lives in the same window, one view level above the page. */
@@ -596,6 +680,7 @@ export class TabbedBrowser {
     if (this.screenshotOpen) this.endScreenshot()
     this.chooserByTab.set(id, request)
     this.fileChooserOpen = true
+    this.cursorView?.setBounds(this.pageBounds())
     this.cursorView?.webContents.send('filechooser:open', request)
   }
 
@@ -772,6 +857,8 @@ export class TabbedBrowser {
   broadcast(channel: string, payload?: unknown): void {
     const targets = [
       this.window.webContents,
+      ...(this.toolbarView ? [this.toolbarView.webContents] : []),
+      ...(this.sidebarView ? [this.sidebarView.webContents] : []),
       ...[...this.tabs.values()].map(tab => tab.view.webContents)
     ]
     for (const wc of targets) {
@@ -780,6 +867,32 @@ export class TabbedBrowser {
   }
 
   focusPage(): void { this.active()?.view.webContents.focus() }
+
+  /** Give keyboard focus back to the shell renderer (toolbar / address bar). */
+  /** Navigate an existing file-manager tab in place, keeping its webContents. */
+  updateActiveFileUrl(url: string): void {
+    const tab = this.active()
+    if (tab && tab.url.startsWith('viewer://files')) {
+      tab.url = url
+      this.emitTabs()
+    }
+  }
+
+  navigateFiles(webContentsId: number, path: string): void {
+    const tab = [...this.tabs.values()].find(t => t.view.webContents.id === webContentsId)
+    if (!tab) return
+    tab.url = path ? `viewer://files/${encodeURIComponent(path)}` : 'viewer://files'
+    const file = internalFile(tab.url)
+    if (file) void tab.view.webContents.loadFile(file, { query: path ? { path } : undefined })
+    this.emitTabs()
+  }
+
+  focusShell(): void { this.window.webContents.focus() }
+  toolbarWebContents(): WebContents | undefined { return this.toolbarView?.webContents }
+
+  focusToolbar(): void { this.toolbarView?.webContents.focus() }
+
+  focusSidebar(): void { this.sidebarView?.webContents.focus() }
 
   refreshLayout(): void { this.layoutActive() }
 
@@ -795,10 +908,19 @@ export class TabbedBrowser {
     const content = this.window.contentView
     if (content.children.includes(tab.view)) content.removeChildView(tab.view)
     content.addChildView(tab.view, 0)
-    // Re-add the cursor view last so it sits directly above the page.
+    // Toolbar and sidebar above the page, cursor layer topmost.
+    // Top to bottom: toolbar (address bar) > sidebar > cursor > page.
     if (this.cursorView) {
       if (content.children.includes(this.cursorView)) content.removeChildView(this.cursorView)
       content.addChildView(this.cursorView)
+    }
+    if (this.sidebarView) {
+      if (content.children.includes(this.sidebarView)) content.removeChildView(this.sidebarView)
+      content.addChildView(this.sidebarView)
+    }
+    if (this.toolbarView) {
+      if (content.children.includes(this.toolbarView)) content.removeChildView(this.toolbarView)
+      content.addChildView(this.toolbarView)
     }
     this.layoutActive()
   }
@@ -826,6 +948,8 @@ export class TabbedBrowser {
       height: Math.max(1, height - TITLEBAR_HEIGHT)
     }
     tab.view.setBounds(bounds)
+    this.toolbarView?.setBounds({ x: 0, y: 0, width, height: TITLEBAR_HEIGHT })
+    this.sidebarView?.setBounds({ x: 0, y: TITLEBAR_HEIGHT, width: LEFT_PANEL_WIDTH, height: Math.max(1, height - TITLEBAR_HEIGHT) })
     if (this.fileChooserOpen || this.screenshotOpen) {
       this.cursorView?.setBounds(bounds)
     } else {

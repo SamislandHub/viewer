@@ -12,9 +12,11 @@ A simple Agent browser. Web pages run in independent `WebContentsView` instances
 
 ![Virtual console: virtual mouse, virtual keyboard and resource analysis](docs/screenshots/03-console.png)
 
+![Built-in file manager](docs/screenshots/04-files.png)
+
 ## Features
 
-- **Self-drawn shell**: frameless window, top toolbar and vertical tab strip on the left; virtual input controls live in a separate console window. Each tab owns a separate `WebContentsView`.
+- **Self-drawn shell**: frameless window. The toolbar and sidebar each run in their own `WebContentsView` overlay, web pages in another view, and virtual input controls in a separate console window. Each tab owns a separate `WebContentsView`.
 - **Virtual mouse**: a small orange cursor with move, left/right click, repeat clicks (1–10) and wheel scrolling. Per-tab cursor position and visibility. Input uses `webContents.sendInputEvent`, so pages receive `isTrusted=true` events and CSS `:hover` works.
 - **Virtual keyboard**: an on-screen English keyboard plus text input (including Chinese) via input events and the system clipboard.
 - **File chooser**: CDP intercepts file input requests and Viewer renders its own file browser (drives, parent directory, multi-select, `accept` filtering).
@@ -26,6 +28,9 @@ A simple Agent browser. Web pages run in independent `WebContentsView` instances
 - **History**: visited pages are recorded (latest entry per URL); the history page can open, delete or clear entries (`data/history.json`).
 - **Built-in pages**: `viewer://bookmarks`, `viewer://history` and `viewer://downloads` are separate pages with filtering, open, delete and clear actions.
 - **Downloads**: `will-download` is intercepted; files are saved under `data/downloads` with a self-drawn progress page, open/reveal, cancel, retry and clear actions.
+- **New tab page**: `viewer://newtab` shows recent bookmarks and history with one-click open.
+- **File manager**: `viewer://files` browses drives and quick folders with create, rename, copy, move, delete and recent files; entering an existing local path in the address bar opens it here.
+- **File preview**: `viewer://preview` previews images and common text files (2 MB limit); other types can be opened with the system default program.
 
 ## Install and run
 
@@ -50,7 +55,7 @@ The renderer URL comes from `ELECTRON_RENDERER_URL` (set by electron-vite with t
 
 ## Usage
 
-- Press Enter in the address bar to navigate; local Windows paths are converted to `file://` URLs.
+- Press Enter in the address bar to navigate; existing local paths open the built-in file manager / preview (`viewer://files` / `viewer://preview`), and only missing paths fall back to `file://`.
 - Use the left `+` or `Ctrl+T` for a new tab; loading tabs show a spinner and progress bar.
 - Click `▤` in the toolbar to open or close the virtual console (a separate window, hidden and not always-on-top by default).
 - The console controls the virtual mouse (X/Y in page or screen coordinates, button, click count, scroll amount) and keyboard.
@@ -126,12 +131,14 @@ Still different, and only fixable by injecting a script:
 
 - `alert` / `confirm` are disabled via `disableDialogs`: `alert` returns immediately, `confirm` always returns `false`, and `prompt` returns `null`. Confirmation flows should use in-page dialogs.
 - Resource analysis records metadata only; response bodies would require CDP and are intentionally out of scope.
+- File preview supports images and common text files only, with a 2 MB text limit; other types open in the system default program.
 - The file chooser requires a trusted user gesture; scripted `input.click()` does not trigger it.
 - Windows only.
+- **Third-party IME compatibility**: if the Doubao IME makes physical keyboard input stop working in this app (cursor blinks but keys are swallowed), this is an IME/Electron compatibility issue, not Viewer code — it also reproduces in a clean Electron window, while Microsoft Pinyin works. Switch to a built-in Windows IME or wait for an IME fix.
 
 ## Development
 
-`src/main/index.ts` wires IPC and window events; `browser.ts` manages tabs and the cursor view; `virtual-mouse.ts` and `virtual-keyboard.ts` implement input; `resource-monitor.ts` observes requests; `fingerprint.ts` aligns UA/Client Hints; `dialog-bridge.ts` handles CDP file chooser and element inspection; `bookmarks.ts`, `history.ts` and `downloads.ts` provide persistence and download management. `src/renderer/index.html` and `controls.html` are the main window and the separate console; `bookmarks.html`, `history.html`, `downloads.html`, `settings.html` and `home.html` back the built-in pages. Edits under `src/main` require an app restart; renderer edits take effect after the next build. Run `npm run typecheck` and `npm run build`.
+`src/main/index.ts` wires IPC and window events; `browser.ts` manages tabs, toolbar/sidebar overlay views and the cursor view; `virtual-mouse.ts` and `virtual-keyboard.ts` implement input; `resource-monitor.ts` observes requests; `fingerprint.ts` aligns UA/Client Hints; `dialog-bridge.ts` handles CDP file chooser and element inspection; `bookmarks.ts`, `history.ts` and `downloads.ts` provide persistence and download management. `src/renderer/toolbar.html` and `sidebar.html` are the toolbar and sidebar views; `index.html` and `controls.html` are the shell and separate console; `newtab.html`, `files.html`, `preview.html`, `bookmarks.html`, `history.html`, `downloads.html`, `settings.html` and `home.html` back the built-in pages. Edits under `src/main` require an app restart; renderer edits take effect after the next build. Run `npm run typecheck` and `npm run build`.
 
 ## License
 

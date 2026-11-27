@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Viewer Toolbar</title>
+  <link rel="stylesheet" href="./src/toolbar.css" />
+</head>
+<body>
+  <div class="toolbar">
+    <div class="nav-group">
+      <button id="home" class="tool-icon" title="主页">
+        <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8" fill="none" stroke="#ff9500" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /><path d="M5.5 10v10h13V10" fill="#fff" stroke="#adb5bd" stroke-width="1.4" stroke-linejoin="round" /></svg>
+      </button>
+      <button id="back" class="tool-icon" title="后退"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg></button>
+      <button id="forward" class="tool-icon" title="前进"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" /></svg></button>
+      <button id="reload" class="tool-icon" title="刷新"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg></button>
+    </div>
+    <div class="url-box">
+      <button id="bookmark" class="url-star" title="收藏当前页 (Ctrl+D)">
+        <svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.2 5.9-.8z" /></svg>
+      </button>
+      <input id="url" type="text" placeholder="搜索或输入网址，回车访问" />
+    </div>
+    <div class="tool-actions">
+      <button id="pickElement" class="tool-icon" title="元素选择"><svg viewBox="0 0 24 24"><path d="M5 3l13.5 8-6.3 1.4L9.4 20 5 3z" /><path d="M12.2 12.4l3.2 5.6" /></svg></button>
+      <button id="screenshot" class="tool-icon" title="截图"><svg viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z" /><circle cx="12" cy="13" r="3.2" /></svg></button>
+    </div>
+    <button id="pinWindow" class="tool-icon" title="窗口置顶"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M12 12v9" /></svg></button>
+    <div class="wincontrols">
+      <button id="winmin" title="最小化">─</button>
+      <button id="winmax" title="最大化/还原">□</button>
+      <button id="winclose" title="关闭" class="close">×</button>
+    </div>
+  </div>
+  <script type="module" src="./src/toolbar.ts"></script>
+</body>
+</html>

@@ -28,7 +28,12 @@ export default defineConfig({
           home: resolve(rendererRoot, 'home.html'),
           bookmarks: resolve(rendererRoot, 'bookmarks.html'),
           history: resolve(rendererRoot, 'history.html'),
-          downloads: resolve(rendererRoot, 'downloads.html')
+          downloads: resolve(rendererRoot, 'downloads.html'),
+          toolbar: resolve(rendererRoot, 'toolbar.html'),
+          sidebar: resolve(rendererRoot, 'sidebar.html'),
+          newtab: resolve(rendererRoot, 'newtab.html'),
+          files: resolve(rendererRoot, 'files.html'),
+          preview: resolve(rendererRoot, 'preview.html')
         }
       }
     }
