@@ -9,19 +9,30 @@ section { margin-bottom: 32px; }
 h2 { font-size: 15px; font-weight: 600; margin: 0; color: #343a40; }
 .section-head button { padding: 5px 10px; border: 1px solid #cbd2dd; background: #fff; border-radius: 6px; font-size: 12px; color: #868e96; cursor: pointer; }
 .section-head button:hover { background: #f1f3f5; color: #343a40; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.shortcuts { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.shortcut {
+  display: flex; align-items: center; gap: 9px; padding: 12px 14px;
+  border: 1px solid #e9ecef; border-radius: 10px; background: #fff;
+  font-size: 13px; color: #343a40; cursor: pointer;
+}
+.shortcut:hover { border-color: #4263eb; background: #f8f9ff; }
+.shortcut .ico {
+  width: 26px; height: 26px; flex: none; display: flex; align-items: center; justify-content: center;
+  border-radius: 7px; background: #e7f1ff; color: #4263eb; font-size: 12px; font-weight: 600;
+}
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
 .entry {
-  display: flex; align-items: center; gap: 10px; min-width: 0;
+  display: flex; align-items: center; gap: 9px; min-width: 0;
   padding: 12px 14px; border: 1px solid #e9ecef; border-radius: 10px;
   background: #fff; cursor: pointer;
 }
 .entry:hover { border-color: #4263eb; background: #f8f9ff; }
 .fav {
-  width: 30px; height: 30px; flex: none; display: flex; align-items: center; justify-content: center;
-  border-radius: 7px; background: #e7f1ff; color: #4263eb; font-weight: 600;
+  width: 26px; height: 26px; flex: none; display: flex; align-items: center; justify-content: center;
+  border-radius: 7px; background: #e7f1ff; color: #4263eb; font-size: 12px; font-weight: 600;
 }
 .info { flex: 1; min-width: 0; }
-.title { font-size: 13px; color: #212529; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.url { font-size: 11px; color: #adb5bd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.meta { font-size: 11px; color: #adb5bd; white-space: nowrap; flex: none; }
-.empty { padding: 22px; border: 1px dashed #dee2e6; border-radius: 10px; color: #adb5bd; font-size: 13px; text-align: center; }
+.title { font-size: 12px; color: #212529; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.url { font-size: 10px; color: #adb5bd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta { display: none; }
+.empty { padding: 12px; border: 1px dashed #dee2e6; border-radius: 8px; color: #adb5bd; font-size: 11px; text-align: center; }

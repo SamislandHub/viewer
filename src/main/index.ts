@@ -1,8 +1,10 @@
 import { app, BrowserWindow, ClipboardItem, clipboard, ipcMain, nativeImage, screen, session, shell, type NativeImage } from 'electron'
 import { basename, join, resolve } from 'node:path'
-import { appendFileSync, cpSync, existsSync, mkdirSync, renameSync, rmSync, statfsSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { appendFileSync, cpSync, existsSync, mkdirSync, renameSync, rmSync, statfsSync, statSync, unlinkSync, watch, writeFileSync } from 'node:fs'
+import { open, readdir, readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
+import { execFileSync, spawn } from 'node:child_process'
+import { TextDecoder } from 'node:util'
 import { TabbedBrowser } from './browser'
 import { VirtualMouse } from './virtual-mouse'
 import { VirtualKeyboard } from './virtual-keyboard'
@@ -13,6 +15,7 @@ import { BookmarkStore } from './bookmarks'
 import { HistoryStore } from './history'
 import { DownloadManager } from './downloads'
 import type { Point } from '@shared/types'
+import { kindByExtension, kindByMagic, mimeForImage, type FileKind } from '../shared/file-types'
 
 /**
  * Electron may start with a different working directory (shortcut, preview,
@@ -69,6 +72,20 @@ function normalizeInput(input: string): string {
   if (aliases[value]) return aliases[value]
 
   return `https://www.bing.com/search?q=${encodeURIComponent(value)}`
+}
+
+/** Convert a file:// URL back to a local path when the file still exists. */
+function localFileFromUrl(url: string): string | null {
+  const match = url.match(/^file:\/\/\/([^?#]+)/i) || url.match(/^file:\/\/([^?#]+)/i)
+  if (!match) return null
+  try {
+    let path = decodeURIComponent(match[1])
+    if (/^\/[a-z]:/i.test(path)) path = path.slice(1)
+    path = path.replace(/\//g, '\\')
+    return existsSync(path) ? path : null
+  } catch {
+    return null
+  }
 }
 
 /** Internal pages and blank/new-tab pages should never become bookmarks. */
@@ -132,7 +149,13 @@ function bootstrap(): void {
       send('controls:state', false)
     })
     placeControls(win)
-    void win.loadFile(join(__dirname, '../renderer/controls.html'))
+    const base = browser.rendererBaseUrl()
+    if (base) {
+      try { void win.loadURL(new URL('controls.html', base).toString()) }
+      catch { void win.loadFile(join(__dirname, '../renderer/controls.html')) }
+    } else {
+      void win.loadFile(join(__dirname, '../renderer/controls.html'))
+    }
     win.webContents.once('did-finish-load', () => {
       const id = activeWebContentsId()
       if (id) sendControls('resources:update', resources.list(id))
@@ -260,6 +283,22 @@ function bootstrap(): void {
   ipcMain.handle('win:maximize', async () => browser.toggleMaximize())
   ipcMain.handle('win:close', async () => browser.close())
   ipcMain.handle('win:isMaximized', async () => browser.isMaximized())
+  let dragOrigin: { x: number; y: number } | null = null
+  let dragWindowOrigin: { x: number; y: number } | null = null
+  ipcMain.handle('win:dragStart', async () => {
+    dragOrigin = screen.getCursorScreenPoint()
+    const bounds = browser.window.getBounds()
+    dragWindowOrigin = { x: bounds.x, y: bounds.y }
+  })
+  ipcMain.handle('win:dragMove', async () => {
+    if (!dragOrigin || !dragWindowOrigin) return
+    const now = screen.getCursorScreenPoint()
+    browser.window.setPosition(
+      dragWindowOrigin.x + now.x - dragOrigin.x,
+      dragWindowOrigin.y + now.y - dragOrigin.y
+    )
+  })
+  ipcMain.handle('win:dragEnd', async () => { dragOrigin = null; dragWindowOrigin = null })
   ipcMain.handle('sidebar:width', async (_e, width: number) => browser.setLeftPanelWidth(width))
   ipcMain.handle('shell:focus', async () => browser.focusToolbar())
   ipcMain.handle('toolbar:focus', async () => browser.focusToolbar())
@@ -318,6 +357,20 @@ function bootstrap(): void {
     mouse.setTargetOverride(undefined)
     browser.respondFileChooser(backendNodeId, files)
   })
+  let dirWatcher: ReturnType<typeof watch> | null = null
+  let dirWatchTimer: NodeJS.Timeout | null = null
+  ipcMain.handle('fs:watch', async (_e, dir: string) => {
+    dirWatcher?.close()
+    dirWatcher = null
+    if (dirWatchTimer) { clearTimeout(dirWatchTimer); dirWatchTimer = null }
+    if (!dir || !existsSync(dir)) return
+    try {
+      dirWatcher = watch(dir, { persistent: false }, () => {
+        if (dirWatchTimer) clearTimeout(dirWatchTimer)
+        dirWatchTimer = setTimeout(() => browser.broadcast('fs:changed', dir), 120)
+      })
+    } catch { /* directory cannot be watched */ }
+  })
   ipcMain.handle('fs:list', async (_e, dir: string) => {
     const target = dir || 'F:\\AI\\AIbrowser\\test'
     const entries = await readdir(target, { withFileTypes: true })
@@ -327,19 +380,103 @@ function bootstrap(): void {
       isDirectory: entry.isDirectory()
     })).sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name))
   })
+  // Read only the leading bytes so classification never loads a whole file.
+  async function fileHeader(path: string, length = 1024): Promise<Uint8Array> {
+    const handle = await open(path, 'r')
+    try {
+      const buffer = Buffer.alloc(length)
+      const { bytesRead } = await handle.read(buffer, 0, length, 0)
+      return new Uint8Array(buffer.subarray(0, bytesRead))
+    } finally {
+      await handle.close()
+    }
+  }
   ipcMain.handle('fs:stat', async (_e, p: string) => {
+    try {
+      const s = await stat(p)
+      let kind: FileKind = 'other'
+      if (!s.isDirectory()) {
+        try {
+          kind = kindByMagic(await fileHeader(p)) ?? kindByExtension(p)
+        } catch {
+          kind = kindByExtension(p)
+        }
+      }
+      return { size: s.size, mtime: s.mtimeMs, isDirectory: s.isDirectory(), kind }
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('fs:readImage', async (_e, p: string) => {
     const s = await stat(p)
-    return { size: s.size, mtime: s.mtimeMs, isDirectory: s.isDirectory() }
+    if (s.size > 20 * 1024 * 1024) throw new Error('图片过大，无法预览')
+    const buffer = await readFile(p)
+    return `data:${mimeForImage(buffer, p)};base64,${buffer.toString('base64')}`
   })
   ipcMain.handle('fs:readFile', async (_e, p: string) => {
     const s = await stat(p)
     if (s.size > 2 * 1024 * 1024) throw new Error('文件过大，无法预览内容')
-    return (await readFile(p)).toString('utf8')
+    const buffer = await readFile(p)
+    // BOM first, then strict UTF-8, with GB18030 fallback for Chinese Windows text files.
+    if (buffer[0] === 0xff && buffer[1] === 0xfe) return new TextDecoder('utf-16le').decode(buffer.subarray(2))
+    if (buffer[0] === 0xfe && buffer[1] === 0xff) return new TextDecoder('utf-16be').decode(buffer.subarray(2))
+    if (buffer[0] === 0xef && buffer[1] === 0xbb && buffer[2] === 0xbf) return new TextDecoder('utf-8').decode(buffer.subarray(3))
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buffer) }
+    catch { return new TextDecoder('gb18030').decode(buffer) }
   })
   ipcMain.handle('files:openExternal', async (_e, p: string) => shell.openPath(p))
   let lastFilePath = ''
   let lastPreviewPath = ''
+  const openUrl = async (url: string): Promise<void> => {
+    const localPath = localFileFromUrl(url)
+    if (localPath) {
+      lastPreviewPath = localPath
+      await browser.load(`viewer://preview/${encodeURIComponent(localPath)}`)
+      return
+    }
+    await browser.load(url)
+  }
+  let fileClipboard: { path: string; mode: 'copy' | 'cut' } | null = null
+  ipcMain.handle('clipboard:setFileOp', async (_e, op: { path: string; mode: 'copy' | 'cut' } | null) => {
+    fileClipboard = op
+  })
+  ipcMain.handle('clipboard:getFileOp', async () => fileClipboard)
+  ipcMain.handle('clipboard:writeText', async (_e, text: string) => clipboard.writeText(text))
+  ipcMain.handle('clipboard:readFiles', async () => {
+    try {
+      const output = execFileSync('powershell.exe', [
+        '-NoProfile', '-STA', '-Command',
+        '$list = Get-Clipboard -Format FileDropList; foreach ($f in $list) { $f.ToString() }'
+      ], { encoding: 'utf8', windowsHide: true, timeout: 5000 })
+      return output.split(/\r?\n/).map(line => line.trim()).filter(line => line && existsSync(line))
+    } catch {
+      return []
+    }
+  })
+  ipcMain.handle('clipboard:writeFiles', async (_e, paths: string[]) => {
+    try {
+      execFileSync('powershell.exe', [
+        '-NoProfile', '-Command',
+        `Set-Clipboard -Path ${paths.map(p => JSON.stringify(p)).join(',')}`
+      ], { windowsHide: true, timeout: 5000 })
+      return ''
+    } catch (error) {
+      return String(error)
+    }
+  })
   ipcMain.handle('files:path', async () => lastFilePath)
+  ipcMain.handle('files:openTerminal', async (_e, dir: string) => {
+    if (!existsSync(dir)) return '目录不存在'
+    const options = { cwd: dir, detached: true, stdio: 'ignore' as const, windowsHide: false }
+    // Prefer Windows Terminal; fall back to a visible cmd window.
+    const wt = spawn('wt.exe', ['-d', dir], options)
+    wt.once('error', () => {
+      const fallback = spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/k', `cd /d "${dir}"`], options)
+      fallback.unref()
+    })
+    wt.unref()
+    return ''
+  })
   ipcMain.handle('preview:path', async () => lastPreviewPath)
   ipcMain.handle('preview:open', async (_e, path: string) => {
     lastPreviewPath = path
@@ -411,6 +548,15 @@ function bootstrap(): void {
       try { lastFilePath = decodeURIComponent(url.slice('viewer://files/'.length)) } catch { /* ignore */ }
     } else if (url.startsWith('viewer://preview/')) {
       try { lastPreviewPath = decodeURIComponent(url.slice('viewer://preview/'.length)) } catch { /* ignore */ }
+    } else if (url.startsWith('file://')) {
+      const localPath = localFileFromUrl(url)
+      if (localPath) {
+        lastPreviewPath = localPath
+        const target = `viewer://preview/${encodeURIComponent(localPath)}`
+        await browser.load(target)
+        browser.updateActiveFileUrl(target)
+        return
+      }
     }
     if (url) await browser.load(url)
     if (url.startsWith('viewer://files') || url.startsWith('viewer://preview')) browser.updateActiveFileUrl(url)
@@ -471,13 +617,13 @@ function bootstrap(): void {
   })
   ipcMain.handle('bookmark:remove', async (_e, id: string) => bookmarks.remove(id))
   ipcMain.handle('bookmark:clear', async () => bookmarks.clear())
-  ipcMain.handle('bookmark:open', async (_e, url: string) => browser.load(url))
+  ipcMain.handle('bookmark:open', async (_e, url: string) => openUrl(url))
 
   // browsing history
   ipcMain.handle('history:list', async () => history.list())
   ipcMain.handle('history:remove', async (_e, id: string) => history.remove(id))
   ipcMain.handle('history:clear', async () => history.clear())
-  ipcMain.handle('history:open', async (_e, url: string) => browser.load(url))
+  ipcMain.handle('history:open', async (_e, url: string) => openUrl(url))
 
   // downloads
   ipcMain.handle('downloads:list', async () => downloads.list())
@@ -602,6 +748,8 @@ function bootstrap(): void {
   }
   void loadShell().then(fromUrl => {
     log('renderer loaded from ' + (fromUrl ? 'dev server' : 'built files'))
+    browser.setRendererBase(fromUrl ? rendererUrl : null)
+    if (fromUrl) browser.reloadInternalTabs()
     browser.sendPageToBack()
     const built = (name: string) => join(__dirname, '../renderer', name)
     const fromBase = (name: string): string => {

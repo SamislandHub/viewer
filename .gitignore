@@ -3,6 +3,7 @@ out/
 dist/
 logs/
 data/
+.preview-check/
 .acl-recovery/
 *.log
 .DS_Store

@@ -2,7 +2,7 @@ import type { Bookmark } from '../../main/bookmarks'
 import type { HistoryEntry } from '../../main/history'
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T
-const LIMIT = 12
+const LIMIT = 10
 
 function makeEntry(title: string, url: string, meta: string, onClick: () => void): HTMLElement {
   const row = document.createElement('div')
@@ -30,7 +30,7 @@ function renderBookmarks(items: Bookmark[]): void {
   const list = $('bookmarkList')
   list.replaceChildren()
   if (!items.length) {
-    list.append(Object.assign(document.createElement('div'), { className: 'empty', textContent: '还没有收藏，点击地址栏右侧星标收藏当前页' }))
+    list.append(Object.assign(document.createElement('div'), { className: 'empty', textContent: '暂无收藏' }))
     return
   }
   for (const item of items.slice(0, LIMIT)) {
@@ -42,7 +42,7 @@ function renderHistory(items: HistoryEntry[]): void {
   const list = $('historyList')
   list.replaceChildren()
   if (!items.length) {
-    list.append(Object.assign(document.createElement('div'), { className: 'empty', textContent: '还没有访问记录' }))
+    list.append(Object.assign(document.createElement('div'), { className: 'empty', textContent: '暂无记录' }))
     return
   }
   for (const item of items.slice(0, LIMIT)) {
@@ -51,6 +51,13 @@ function renderHistory(items: HistoryEntry[]): void {
     })
     list.append(makeEntry(item.title, item.url, time, () => void window.api.historyOpen(item.url)))
   }
+}
+
+for (const shortcut of Array.from(document.querySelectorAll<HTMLElement>('.shortcut'))) {
+  shortcut.addEventListener('click', () => {
+    const url = shortcut.dataset.url
+    if (url) void window.api.internalOpen(url)
+  })
 }
 
 $('openBookmarks').addEventListener('click', () => void window.api.internalOpen('viewer://bookmarks'))

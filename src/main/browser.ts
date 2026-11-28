@@ -360,6 +360,7 @@ export class TabbedBrowser {
   private cursorView: WebContentsView | null = null
   private toolbarView: WebContentsView | null = null
   private sidebarView: WebContentsView | null = null
+  private rendererBase: string | null = null
   private cursorPoint: Point = { x: 0, y: 0 }
   private fileChooserOpen = false
   private screenshotOpen = false
@@ -489,26 +490,8 @@ export class TabbedBrowser {
     wc.on('did-navigate-in-page', () => sync(false))
 
     const file = internalFile(url)
-    if (file) {
-      if (file.endsWith('/files.html') || file.endsWith('/preview.html')) {
-        let target = ''
-        for (const prefix of ['viewer://files/', 'viewer://preview/']) {
-          if (url.startsWith(prefix)) {
-            try { target = decodeURIComponent(url.slice(prefix.length)) } catch { /* ignore */ }
-            break
-          }
-        }
-        if (!target) {
-          const queryIndex = url.indexOf('?path=')
-          if (queryIndex >= 0) {
-            try { target = decodeURIComponent(url.slice(queryIndex + 6)) } catch { /* ignore */ }
-          }
-        }
-        void wc.loadFile(file, { query: target ? { path: target } : undefined })
-      } else {
-        void wc.loadFile(file)
-      }
-    } else void wc.loadURL(url)
+    if (file) void this.loadInternal(wc, file, this.internalQuery(url))
+    else void wc.loadURL(url)
     this.activateTab(id)
     return id
   }
@@ -596,6 +579,38 @@ export class TabbedBrowser {
     this.sidebarView = view
     this.window.contentView.addChildView(view)
     this.layoutActive()
+  }
+
+  setRendererBase(base: string | null): void { this.rendererBase = base }
+  rendererBaseUrl(): string | null { return this.rendererBase }
+
+  private internalQuery(url: string): Record<string, string> | undefined {
+    for (const prefix of ['viewer://files/', 'viewer://preview/']) {
+      if (url.startsWith(prefix)) {
+        try { return { path: decodeURIComponent(url.slice(prefix.length)) } } catch { /* ignore */ }
+      }
+    }
+    return undefined
+  }
+
+  private loadInternal(wc: WebContents, file: string, query?: Record<string, string>): Promise<void> {
+    if (this.rendererBase) {
+      try {
+        const name = file.split(/[\\/]/).pop() ?? file
+        const url = new URL(name, this.rendererBase)
+        if (query) for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
+        return wc.loadURL(url.toString())
+      } catch { /* fall through to built file */ }
+    }
+    return wc.loadFile(file, { query })
+  }
+
+  /** Re-load internal tabs so they pick up the dev server (HMR) after bootstrap. */
+  reloadInternalTabs(): void {
+    for (const tab of this.tabs.values()) {
+      const file = internalFile(tab.url)
+      if (file) void this.loadInternal(tab.view.webContents, file, this.internalQuery(tab.url))
+    }
   }
 
   loadToolbar(url: string): Promise<void> {
@@ -768,7 +783,7 @@ export class TabbedBrowser {
       if (!tab) return Promise.resolve()
     }
     const file = internalFile(url)
-    if (file) return tab.view.webContents.loadFile(file)
+    if (file) return this.loadInternal(tab.view.webContents, file, this.internalQuery(url))
     return tab.view.webContents.loadURL(url)
   }
 
@@ -883,7 +898,7 @@ export class TabbedBrowser {
     if (!tab) return
     tab.url = path ? `viewer://files/${encodeURIComponent(path)}` : 'viewer://files'
     const file = internalFile(tab.url)
-    if (file) void tab.view.webContents.loadFile(file, { query: path ? { path } : undefined })
+    if (file) void this.loadInternal(tab.view.webContents, file, path ? { path } : undefined)
     this.emitTabs()
   }
 

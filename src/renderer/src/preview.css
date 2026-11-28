@@ -1,18 +1,213 @@
-* { box-sizing: border-box; scrollbar-width: none; }
-*::-webkit-scrollbar { display: none; }
-body { margin: 0; background: #fff; color: #212529; font: 14px/1.6 ui-sans-serif, system-ui, "Microsoft YaHei", sans-serif; }
-main { max-width: 1100px; margin: 0 auto; padding: 26px 30px 70px; }
-#head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-h1 { font-size: 18px; font-weight: 600; margin: 0; word-break: break-all; }
-.meta { color: #adb5bd; font-size: 12px; }
-#openExternal { flex: none; padding: 7px 13px; border: 1px solid #cbd2dd; background: #fff; border-radius: 6px; font-size: 12px; cursor: pointer; }
-#openExternal:hover { background: #f1f3f5; }
-.preview-box { border: 1px solid #e3e7ee; border-radius: 10px; padding: 16px; }
-.preview-box img { max-width: 100%; max-height: 72vh; display: block; margin: 0 auto; }
-.preview-box pre { margin: 0; padding: 14px; background: #f8f9fa; border-radius: 6px; overflow: auto; font: 12px/1.7 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-all; max-height: 72vh; }
-.unsupported { text-align: center; padding: 70px 20px; color: #868e96; }
-.unsupported .icon { font-size: 46px; margin-bottom: 12px; }
-.unsupported b { display: block; font-size: 15px; color: #495057; margin-bottom: 6px; }
-.unsupported p { margin: 0 0 18px; font-size: 12px; }
-.unsupported button { padding: 7px 14px; border: 1px solid #cbd2dd; background: #fff; border-radius: 6px; font-size: 12px; cursor: pointer; }
-.unsupported button:hover { background: #f1f3f5; }
+* { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: #cbd2dd transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #cbd2dd; border-radius: 4px; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: #fff;
+  color: #212529;
+  font: 13px/1.5 "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+}
+
+/* ---------- One-line header, pinned at the top ---------- */
+#head {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 10px;
+  background: #fff;
+  border-bottom: 1px solid #eef0f3;
+}
+
+/* File-type badge */
+.file-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: #4263eb;
+  background: #e7f1ff;
+}
+.file-icon svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.file-icon.img  { color: #0ca678; background: #e6fcf5; }
+.file-icon.code { color: #f76707; background: #fff4e6; }
+.file-icon.text { color: #4263eb; background: #e7f1ff; }
+.file-icon.file { color: #868e96; background: #f1f3f5; }
+
+h1 {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Size / time with tiny icons */
+.meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #adb5bd;
+  font-size: 11px;
+  line-height: 1;
+}
+.meta-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.meta-item svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Icon-first, borderless actions */
+.head-actions { flex: none; display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.head-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #495057;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.head-actions button:hover { background: #f1f3f5; color: #212529; }
+.head-actions button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.head-actions button.icon-btn { width: 24px; padding: 0; justify-content: center; }
+.head-actions button[hidden] { display: none; }
+
+/* ---------- Preview area: full bleed, no outer margin or padding ---------- */
+#content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+}
+.preview-box { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+.preview-box.image { background: #fafbfc; }
+.preview-box img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  margin: auto;
+}
+
+.preview-box.text { background: #fff; }
+.preview-box pre {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  background: #f8f9fa;
+  font: 12px/1.7 ui-monospace, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #343a40;
+}
+
+/* HTML: absolutely fill the viewport so the page keeps its native width. */
+.preview-box.html { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #fff; }
+.preview-box iframe {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+/* ---------- Empty / unsupported state ---------- */
+.unsupported {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+  text-align: center;
+  color: #868e96;
+}
+.unsupported .icon { color: #ced4da; margin-bottom: 10px; }
+.unsupported .icon svg {
+  width: 42px;
+  height: 42px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.unsupported b { display: block; font-size: 13px; color: #495057; margin-bottom: 4px; }
+.unsupported p { margin: 0 0 14px; font-size: 11px; word-break: break-all; }
+.unsupported button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: #f1f3f5;
+  color: #495057;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.unsupported button:hover { background: #e9ecef; color: #212529; }
+.unsupported button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

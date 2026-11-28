@@ -8,37 +8,67 @@
 <body>
   <aside id="sidebar">
     <div class="side-section">
-      <div class="side-title">快速访问 <span>⌄</span></div>
+      <div class="side-title">快速访问</div>
       <div id="quickList"></div>
     </div>
     <div class="side-section">
-      <div class="side-title">此电脑 <span>⌄</span></div>
+      <div class="side-title">此电脑</div>
       <div id="driveList"></div>
     </div>
   </aside>
   <section id="main">
     <div id="actions">
-      <button id="up" class="cmd-btn" title="上一级"><span class="ico">↑</span>上一级</button>
+      <button id="home" class="cmd-btn icon-only" title="最近访问">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>
+      </button>
+      <button id="up" class="cmd-btn icon-only" title="上一级"><span class="ico">↑</span></button>
       <span class="sep"></span>
       <div class="new-wrap">
-        <button id="newBtn" class="cmd-btn"><span class="ico">＋</span>新建<span class="caret">⌄</span></button>
+        <button id="newBtn" class="cmd-btn"><span class="ico">＋</span>文件夹</button>
         <div id="newMenu" class="new-menu" hidden>
-          <button id="newFolder">文件夹</button>
-          <button id="newFile">文本文档</button>
+          <button id="newFolder"><span class="mi mi-folder">📁</span>文件夹</button>
+          <button class="new-file" data-name="新建文本文档.txt" data-label="文本文档"><span class="mi mi-txt">📄</span>文本文档</button>
+          <button class="new-file" data-name="新建文档.docx" data-label="Word 文档"><span class="mi mi-doc">W</span>Word 文档</button>
+          <button class="new-file" data-name="新建工作表.xlsx" data-label="Excel 工作表"><span class="mi mi-xls">X</span>Excel 工作表</button>
+          <button class="new-file" data-name="新建演示文稿.pptx" data-label="演示文稿"><span class="mi mi-ppt">P</span>演示文稿</button>
         </div>
       </div>
       <span class="sep"></span>
-      <button id="cut" class="cmd-btn" title="剪切"><span class="ico">✂</span>剪切</button>
-      <button id="copy" class="cmd-btn" title="复制"><span class="ico">⧉</span>复制</button>
-      <button id="paste" class="cmd-btn" title="粘贴"><span class="ico">📋</span>粘贴</button>
-      <button id="rename" class="cmd-btn" title="重命名"><span class="ico">✎</span>重命名</button>
+      <button id="cut" class="cmd-btn" title="剪切"><span class="ico">✂</span><span>剪切</span></button>
+      <button id="copy" class="cmd-btn" title="复制"><span class="ico">⧉</span><span>复制</span></button>
+      <button id="paste" class="cmd-btn" title="粘贴"><span class="ico">📋</span><span>粘贴</span></button>
+      <button id="rename" class="cmd-btn" title="重命名"><span class="ico">✎</span><span>重命名</span></button>
       <span class="sep"></span>
-      <button id="delete" class="cmd-btn danger" title="删除"><span class="ico">🗑</span>删除</button>
+      <button id="delete" class="cmd-btn danger" title="删除"><span class="ico">🗑</span><span>删除</span></button>
       <span class="sep"></span>
-      <button id="refresh" class="cmd-btn" title="刷新"><span class="ico">↻</span>刷新</button>
+      <button id="refresh" class="cmd-btn" title="刷新"><span class="ico">↻</span><span>刷新</span></button>
     </div>
     <div id="content"></div>
   </section>
+  <div id="ctxMenu" class="ctx-menu" hidden>
+    <button data-action="external"><svg viewBox="0 0 24 24"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M18 14v5H5V6h5" /></svg>在系统程序中打开</button>
+    <button data-action="terminal"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3M13 15h4" /></svg>在终端打开</button>
+    <button data-action="copypath"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></svg>复制路径</button>
+    <button data-action="quickadd"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.2 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.2 5.9-.8z" /></svg>添加到快速访问</button>
+    <div class="ctx-sep"></div>
+    <button data-action="cut"><svg viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5" /><circle cx="6" cy="6" r="2.5" /><path d="M8 8l11 11M8 16L19 5" /></svg>剪切</button>
+    <button data-action="copy"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" /></svg>复制</button>
+    <button data-action="paste"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="16" rx="2" /><path d="M9 5V3h6v2M9 11h6M9 15h6" /></svg>粘贴</button>
+    <div class="ctx-sep"></div>
+    <button data-action="rename"><svg viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16z" /><path d="M14 6l4 4" /></svg>重命名</button>
+    <button data-action="delete"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" /></svg>删除</button>
+    <div class="ctx-sep"></div>
+    <button data-action="folder"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z" /><path d="M12 12v5M9.5 14.5h5" /></svg>新建文件夹</button>
+    <div class="ctx-sub">
+      <button class="ctx-parent" data-action="filemenu"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4M9 12h6M9 16h6" /></svg>新建文件<span class="ctx-arrow">›</span></button>
+      <div class="ctx-submenu">
+        <button class="new-file" data-name="新建文本文档.txt"><span class="mi mi-txt">📄</span>文本文档</button>
+        <button class="new-file" data-name="新建文档.docx"><span class="mi mi-doc">W</span>Word 文档</button>
+        <button class="new-file" data-name="新建工作表.xlsx"><span class="mi mi-xls">X</span>Excel 工作表</button>
+        <button class="new-file" data-name="新建演示文稿.pptx"><span class="mi mi-ppt">P</span>演示文稿</button>
+      </div>
+    </div>
+  </div>
   <div id="modal" class="modal" hidden>
     <div class="modal-box">
       <div id="modalTitle" class="modal-title"></div>

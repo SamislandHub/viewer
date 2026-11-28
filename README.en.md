@@ -16,7 +16,7 @@ A simple Agent browser. Web pages run in independent `WebContentsView` instances
 
 ## Features
 
-- **Self-drawn shell**: frameless window. The toolbar and sidebar each run in their own `WebContentsView` overlay, web pages in another view, and virtual input controls in a separate console window. Each tab owns a separate `WebContentsView`.
+- **Self-drawn shell**: frameless window. The toolbar and sidebar each run in their own `WebContentsView` overlay, web pages in another view, and virtual input controls in a separate console window. Drag the empty toolbar area to move the window. Each tab owns a separate `WebContentsView`.
 - **Virtual mouse**: a small orange cursor with move, left/right click, repeat clicks (1–10) and wheel scrolling. Per-tab cursor position and visibility. Input uses `webContents.sendInputEvent`, so pages receive `isTrusted=true` events and CSS `:hover` works.
 - **Virtual keyboard**: an on-screen English keyboard plus text input (including Chinese) via input events and the system clipboard.
 - **File chooser**: CDP intercepts file input requests and Viewer renders its own file browser (drives, parent directory, multi-select, `accept` filtering).
@@ -29,8 +29,8 @@ A simple Agent browser. Web pages run in independent `WebContentsView` instances
 - **Built-in pages**: `viewer://bookmarks`, `viewer://history` and `viewer://downloads` are separate pages with filtering, open, delete and clear actions.
 - **Downloads**: `will-download` is intercepted; files are saved under `data/downloads` with a self-drawn progress page, open/reveal, cancel, retry and clear actions.
 - **New tab page**: `viewer://newtab` shows recent bookmarks and history with one-click open.
-- **File manager**: `viewer://files` browses drives and quick folders with create, rename, copy, move, delete and recent files; entering an existing local path in the address bar opens it here.
-- **File preview**: `viewer://preview` previews images and common text files (2 MB limit); other types can be opened with the system default program.
+- **File manager**: `viewer://files` browses drives and quick folders with create, inline rename, copy/cut/paste (including Explorer's system clipboard), delete, copy path, context menu, shortcuts (F2/Delete/Ctrl+C/X/V), directory watching and "open in terminal"; entering an existing local path in the address bar opens it here.
+- **File preview**: `viewer://preview` classifies files by content (magic bytes first, extension as fallback): images render as embedded data URLs (20 MB limit), HTML can switch between preview and source, and text supports UTF-8/UTF-16/GB18030 decoding (2 MB limit). Other types open with the system default program; `file://` entries in history are redirected here.
 
 ## Install and run
 
@@ -131,14 +131,14 @@ Still different, and only fixable by injecting a script:
 
 - `alert` / `confirm` are disabled via `disableDialogs`: `alert` returns immediately, `confirm` always returns `false`, and `prompt` returns `null`. Confirmation flows should use in-page dialogs.
 - Resource analysis records metadata only; response bodies would require CDP and are intentionally out of scope.
-- File preview supports images and common text files only, with a 2 MB text limit; other types open in the system default program.
+- File preview supports images (≤20 MB), HTML and common text files (≤2 MB); other types open in the system default program. Content-based detection may disagree with a misleading extension.
 - The file chooser requires a trusted user gesture; scripted `input.click()` does not trigger it.
 - Windows only.
 - **Third-party IME compatibility**: if the Doubao IME makes physical keyboard input stop working in this app (cursor blinks but keys are swallowed), this is an IME/Electron compatibility issue, not Viewer code — it also reproduces in a clean Electron window, while Microsoft Pinyin works. Switch to a built-in Windows IME or wait for an IME fix.
 
 ## Development
 
-`src/main/index.ts` wires IPC and window events; `browser.ts` manages tabs, toolbar/sidebar overlay views and the cursor view; `virtual-mouse.ts` and `virtual-keyboard.ts` implement input; `resource-monitor.ts` observes requests; `fingerprint.ts` aligns UA/Client Hints; `dialog-bridge.ts` handles CDP file chooser and element inspection; `bookmarks.ts`, `history.ts` and `downloads.ts` provide persistence and download management. `src/renderer/toolbar.html` and `sidebar.html` are the toolbar and sidebar views; `index.html` and `controls.html` are the shell and separate console; `newtab.html`, `files.html`, `preview.html`, `bookmarks.html`, `history.html`, `downloads.html`, `settings.html` and `home.html` back the built-in pages. Edits under `src/main` require an app restart; renderer edits take effect after the next build. Run `npm run typecheck` and `npm run build`.
+`src/main/index.ts` wires IPC and window events; `browser.ts` manages tabs, toolbar/sidebar overlay views and the cursor view; `virtual-mouse.ts` and `virtual-keyboard.ts` implement input; `resource-monitor.ts` observes requests; `fingerprint.ts` aligns UA/Client Hints; `dialog-bridge.ts` handles CDP file chooser and element inspection; `bookmarks.ts`, `history.ts` and `downloads.ts` provide persistence and download management; `src/shared/file-types.ts` is the shared content-based file classifier. `src/renderer/toolbar.html` and `sidebar.html` are the toolbar and sidebar views; `index.html` and `controls.html` are the shell and separate console; `newtab.html`, `files.html`, `preview.html`, `bookmarks.html`, `history.html`, `downloads.html`, `settings.html` and `home.html` back the built-in pages. Edits under `src/main` require an app restart; renderer edits take effect after the next build. Run `npm run typecheck` and `npm run build`.
 
 ## License
 

@@ -43,6 +43,15 @@ async function toggleBookmark(): Promise<void> {
 }
 
 document.addEventListener('mousedown', () => void window.api.toolbarFocus())
+
+let dragging = false
+$('dragHandle').addEventListener('mousedown', e => {
+  e.preventDefault()
+  dragging = true
+  void window.api.winDragStart()
+})
+document.addEventListener('mousemove', () => { if (dragging) void window.api.winDragMove() })
+document.addEventListener('mouseup', () => { if (dragging) { dragging = false; void window.api.winDragEnd() } })
 urlInput.addEventListener('focus', () => {
   urlEditing = true
   void window.api.setUrlInputFocused?.(true)

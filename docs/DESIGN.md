@@ -38,7 +38,8 @@ Electron 主进程
 - **下载不弹原生框**：`will-download` 是 session 级事件，只注册一次；文件统一落到 `data/downloads`，进度由主进程推送给外壳面板。
 - **原生弹框直接禁用**：标签页 `disableDialogs: true`，不再尝试接管 alert/confirm。
 - **外壳分层**：工具栏与侧边栏用独立 WebContentsView 叠加在网页上，避免页面抢占地址栏焦点；键盘事件在 url 输入期间从子 View 转发回工具栏。
-- **本地路径进入内置页**：存在的本地路径转成 `viewer://files/<path>` 或 `viewer://preview/<path>`，不再直接 `file://` 打开；文件管理提供新建/重命名/复制/移动/删除，预览仅支持图片与 2 MB 内文本。
+- **本地路径进入内置页**：存在的本地路径转成 `viewer://files/<path>` 或 `viewer://preview/<path>`，历史中的 `file://` 也改走预览页；文件管理支持系统剪贴板、右键菜单、快捷键与目录监听。
+- **文件内容识别**：`src/shared/file-types.ts` 以魔数判定图片/HTML/文本/其他，扩展名仅作兜底；预览用内嵌 data URL 显示图片，HTML 可切源码，文本按 UTF-8/UTF-16/GB18030 解码。
 
 ## 3. 输入模型
 

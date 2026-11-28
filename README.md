@@ -16,7 +16,7 @@
 
 ## 功能
 
-- **自绘浏览器外壳**：无边框窗口；工具栏和侧边栏分别运行在独立的 `WebContentsView` 覆盖层上，网页在另一个独立 View 中，虚拟输入控件在独立的控制台窗口中。每个标签是一个独立的 `WebContentsView`。
+- **自绘浏览器外壳**：无边框窗口；工具栏和侧边栏分别运行在独立的 `WebContentsView` 覆盖层上，网页在另一个独立 View 中，虚拟输入控件在独立的控制台窗口中。工具栏空白处可拖动窗口。每个标签是一个独立的 `WebContentsView`。
 - **虚拟鼠标**：可见的橙色光标，支持移动、左键/右键、连击（1–10 次）、滚轮；每个标签独立保存光标位置与显示状态。点击通过 `webContents.sendInputEvent` 注入，页面收到 `isTrusted=true` 的事件，CSS `:hover` 正常生效。
 - **虚拟键盘**：英文键盘与文字输入（含中文），通过 `sendInputEvent` 与系统剪贴板实现，同样不注入页面 JS。
 - **文件选择器**：通过 CDP 拦截文件选择请求，在应用内展示自绘的文件浏览器（磁盘/上一级/多选/accept 过滤）；这是唯一使用 CDP 的场景。
@@ -29,8 +29,8 @@
 - **内置页面**：`viewer://bookmarks`、`viewer://history`、`viewer://downloads` 三个独立页面，支持筛选、打开、删除与清空；可从左侧栏底部图标、主页快捷入口或地址栏进入。
 - **下载管理**：接管 `will-download`，文件统一保存到 `data/downloads`；独立页面显示进度，支持打开、定位、取消、中断重试与清除记录。
 - **新标签页**：`viewer://newtab` 展示最近收藏与历史记录，可一键打开或进入完整页面。
-- **文件管理器**：`viewer://files` 提供磁盘/快捷目录浏览、新建、重命名、复制、移动、删除与最近访问；地址栏输入本地路径自动进入（`viewer://files/<路径>`）。
-- **文件预览**：`viewer://preview` 预览图片与常见文本文件（限制 2 MB），其他类型可调用系统程序打开。
+- **文件管理器**：`viewer://files` 提供磁盘/快捷目录浏览、新建、行内重命名、复制/剪切/粘贴（兼容资源管理器系统剪贴板）、删除、复制路径、右键菜单、快捷键（F2/Delete/Ctrl+C/X/V）、目录变更监听与在终端打开；地址栏输入本地路径自动进入（`viewer://files/<路径>`）。
+- **文件预览**：`viewer://preview` 按**文件内容**识别类型（魔数优先、扩展名兜底）：图片以内嵌 data URL 显示（上限 20 MB），HTML 可在预览/源码间切换，文本支持 UTF-8/UTF-16/GB18030 解码（上限 2 MB）；其他类型可调用系统程序打开。历史中的 `file://` 本地文件也会自动转到预览页。
 
 ## 安装与运行
 
@@ -134,7 +134,7 @@ Viewer 会在不注入页面脚本的前提下尽量对齐 Chrome，实现见 `s
 
 - `alert` / `confirm` 已通过 `disableDialogs` 直接禁用：`alert` 立即返回，`confirm` 固定返回 `false`，`prompt` 返回 `null`。需要用户确认的业务逻辑应改用页面内自定义弹框。
 - 资源分析只记录请求元数据，不记录响应 body——读取 body 需要 CDP，按设计边界未启用。
-- 文件预览只支持图片与常见文本格式，且文本文件上限 2 MB；其他类型需用系统程序打开。
+- 文件预览只支持图片（≤20 MB）、HTML 与常见文本（≤2 MB）；其他类型需用系统程序打开。伪装扩展名的文件按内容识别，可能与扩展名不同。
 - 文件选择器需要可信用户手势触发；脚本式 `input.click()` 不算手势。
 - 仅支持 Windows（界面与输入注入依赖 Electron Windows 行为）。
 - **第三方输入法兼容性**：如果使用豆包输入法且更新后在本应用中出现“输入框光标闪动但物理键盘完全无反应”，这不是本应用代码问题——最早版本和一个不加载本应用代码的干净 Electron 窗口都能复现，而微软拼音正常。推测是豆包输入法新版本对 Electron/Chromium 窗口的兼容处理导致按键被吞掉。临时解决：切换到微软拼音等系统自带输入法，或等待豆包输入法修复。
@@ -153,6 +153,7 @@ Viewer 会在不注入页面脚本的前提下尽量对齐 Chrome，实现见 `s
 | `src/main/bookmarks.ts` | 收藏夹持久化（`data/bookmarks.json`） |
 | `src/main/history.ts` | 历史记录持久化（`data/history.json`） |
 | `src/main/downloads.ts` | 下载接管与进度跟踪（`data/downloads`） |
+| `src/shared/file-types.ts` | 文件类型识别（魔数 + 扩展名，供主进程与预览页共用） |
 | `src/renderer/toolbar.html` / `sidebar.html` | 独立工具栏 View / 侧边栏 View |
 | `src/renderer/index.html` / `controls.html` | 主外壳 / 独立控制台 |
 | `src/renderer/newtab.html` | 新标签页（收藏与历史） |

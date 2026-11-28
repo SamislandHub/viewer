@@ -6,6 +6,7 @@ import type { Bookmark } from '../main/bookmarks'
 import type { HistoryEntry } from '../main/history'
 import type { DownloadRecord } from '../main/downloads'
 import type { InspectedElement } from '../main/dialog-bridge'
+import type { FileKind } from '../shared/file-types'
 
 export interface BrowserAPI {
   winMinimize(): Promise<void>
@@ -79,6 +80,9 @@ export interface BrowserAPI {
   controlsIsOpen(): Promise<boolean>
   winPin(pinned: boolean): Promise<void>
   winIsPinned(): Promise<boolean>
+  winDragStart(): Promise<void>
+  winDragMove(): Promise<void>
+  winDragEnd(): Promise<void>
   sidebarWidth(width: number): Promise<void>
   shellFocus(): Promise<void>
   toolbarFocus(): Promise<void>
@@ -117,10 +121,19 @@ export interface BrowserAPI {
   fsDrives(): Promise<string[]>
   fsDriveInfo(): Promise<{ path: string; total: number; free: number }[]>
   fsBasename(path: string): Promise<string>
-  fsStat(path: string): Promise<{ size: number; mtime: number; isDirectory: boolean }>
+  fsWatch(dir: string): Promise<void>
+  onFsChanged(cb: (dir: string) => void): void
+  fsReadImage(path: string): Promise<string>
+  fsStat(path: string): Promise<{ size: number; mtime: number; isDirectory: boolean; kind: FileKind } | null>
   fsReadFile(path: string): Promise<string>
   filesOpenExternal(path: string): Promise<string>
+  clipboardSetFileOp(op: { path: string; mode: 'copy' | 'cut' } | null): Promise<void>
+  clipboardGetFileOp(): Promise<{ path: string; mode: 'copy' | 'cut' } | null>
+  clipboardWriteText(text: string): Promise<void>
+  clipboardWriteFiles(paths: string[]): Promise<string>
+  clipboardReadFiles(): Promise<string[]>
   filesPath(): Promise<string>
+  filesOpenTerminal(dir: string): Promise<string>
   filesNavigate(path: string): Promise<void>
   filesHome(): Promise<string>
   fsCreateDir(parent: string, name: string): Promise<string>
@@ -210,10 +223,19 @@ const api: BrowserAPI = {
   fsDrives: () => ipcRenderer.invoke('fs:drives'),
   fsDriveInfo: () => ipcRenderer.invoke('fs:driveInfo'),
   fsBasename: path => ipcRenderer.invoke('fs:basename', path),
+  fsWatch: dir => ipcRenderer.invoke('fs:watch', dir),
+  onFsChanged: cb => ipcRenderer.on('fs:changed', (_e, dir) => cb(dir)),
+  fsReadImage: path => ipcRenderer.invoke('fs:readImage', path),
   fsStat: path => ipcRenderer.invoke('fs:stat', path),
   fsReadFile: path => ipcRenderer.invoke('fs:readFile', path),
   filesOpenExternal: path => ipcRenderer.invoke('files:openExternal', path),
+  clipboardSetFileOp: op => ipcRenderer.invoke('clipboard:setFileOp', op),
+  clipboardGetFileOp: () => ipcRenderer.invoke('clipboard:getFileOp'),
+  clipboardWriteText: text => ipcRenderer.invoke('clipboard:writeText', text),
+  clipboardWriteFiles: paths => ipcRenderer.invoke('clipboard:writeFiles', paths),
+  clipboardReadFiles: () => ipcRenderer.invoke('clipboard:readFiles'),
   filesPath: () => ipcRenderer.invoke('files:path'),
+  filesOpenTerminal: dir => ipcRenderer.invoke('files:openTerminal', dir),
   filesNavigate: path => ipcRenderer.invoke('files:navigate', path),
   filesHome: () => ipcRenderer.invoke('files:home'),
   fsCreateDir: (parent, name) => ipcRenderer.invoke('fs:createDir', parent, name),
@@ -236,6 +258,9 @@ const api: BrowserAPI = {
   controlsIsOpen: () => ipcRenderer.invoke('controls:isOpen'),
   winPin: pinned => ipcRenderer.invoke('win:pin', pinned),
   winIsPinned: () => ipcRenderer.invoke('win:isPinned'),
+  winDragStart: () => ipcRenderer.invoke('win:dragStart'),
+  winDragMove: () => ipcRenderer.invoke('win:dragMove'),
+  winDragEnd: () => ipcRenderer.invoke('win:dragEnd'),
   sidebarWidth: width => ipcRenderer.invoke('sidebar:width', width),
   shellFocus: () => ipcRenderer.invoke('shell:focus'),
   toolbarFocus: () => ipcRenderer.invoke('toolbar:focus'),
