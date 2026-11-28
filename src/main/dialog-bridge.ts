@@ -9,6 +9,8 @@ export interface FileChooserRequest {
   directory: boolean
   /** input has the multiple attribute. */
   multiple: boolean
+  /** Optional starting folder for chooser requests opened by internal pages. */
+  initialDir?: string
 }
 
 export interface InspectedElement {

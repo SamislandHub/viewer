@@ -15,6 +15,18 @@
       <div class="row"><span>资源</span><button id="setClear">清空当前资源</button></div>
     </section>
     <section class="card">
+      <h2>下载</h2>
+      <div class="row">
+        <span>下载目录</span>
+        <div class="path-row">
+          <input id="setDownloadDir" type="text" spellcheck="false" placeholder="留空恢复默认目录" />
+          <button id="setBrowseDir" type="button">选择…</button>
+          <button id="setOpenDownloadDir" type="button" title="打开当前下载目录">打开</button>
+        </div>
+      </div>
+      <div id="setDownloadHint" class="hint"></div>
+    </section>
+    <section class="card">
       <h2>浏览器信息</h2>
       <div id="setInfo" class="info"></div>
     </section>

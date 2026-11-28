@@ -31,15 +31,27 @@ function safeFilename(name: string): string {
  * pushed to the shell renderer for an in-app download manager.
  */
 export class DownloadManager {
-  readonly directory: string
+  readonly defaultDirectory: string
+  directory: string
   private readonly items: DownloadRecord[] = []
   private readonly active = new Map<string, DownloadItem>()
 
   onUpdate?: (items: DownloadRecord[]) => void
   onError?: (message: string) => void
 
-  constructor(baseDir: string) {
-    this.directory = join(baseDir, 'data', 'downloads')
+  constructor(baseDir: string, initialDir = '') {
+    this.defaultDirectory = join(baseDir, 'data', 'downloads')
+    this.directory = initialDir || this.defaultDirectory
+    this.ensureDirectory()
+  }
+
+  /** Empty path restores the default. Active downloads keep their original save path. */
+  setDirectory(dir: string): void {
+    this.directory = dir.trim() || this.defaultDirectory
+    this.ensureDirectory()
+  }
+
+  private ensureDirectory(): void {
     mkdirSync(this.directory, { recursive: true })
   }
 

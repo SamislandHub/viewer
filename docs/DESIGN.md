@@ -35,7 +35,7 @@ Electron 主进程
   1. 文件选择（Electron 无对应公开 API）
   2. UA Client Hints 覆盖（`Emulation.setUserAgentOverride`，浏览器级，不执行页面脚本）
   3. 元素选择（`Overlay.setInspectMode` + `inspectNodeRequested`，DevTools 原生高亮，不执行页面脚本）
-- **下载不弹原生框**：`will-download` 是 session 级事件，只注册一次；文件统一落到 `data/downloads`，进度由主进程推送给外壳面板。
+- **下载不弹原生框**：`will-download` 是 session 级事件，只注册一次；默认落到 `data/downloads`，设置页可改目录（持久化到 `data/settings.json`），进行中的下载保持原路径，进度由主进程推送给外壳面板。设置页选目录复用同一个被拦截的文件选择器（`backendNodeId=0` 标记内部请求）。
 - **原生弹框直接禁用**：标签页 `disableDialogs: true`，不再尝试接管 alert/confirm。
 - **外壳分层**：工具栏与侧边栏用独立 WebContentsView 叠加在网页上，避免页面抢占地址栏焦点；键盘事件在 url 输入期间从子 View 转发回工具栏。
 - **本地路径进入内置页**：存在的本地路径转成 `viewer://files/<path>` 或 `viewer://preview/<path>`，历史中的 `file://` 也改走预览页；文件管理支持系统剪贴板、右键菜单、快捷键与目录监听。

@@ -98,7 +98,7 @@ function bootstrap(): void {
   const settingsStore = new SettingsStore(root)
   const bookmarks = new BookmarkStore(root)
   const history = new HistoryStore(root)
-  const downloads = new DownloadManager(root)
+  const downloads = new DownloadManager(root, settingsStore.get().downloadDir)
   downloads.onError = message => log('DOWNLOAD ' + message)
   downloads.attach(session.defaultSession)
   let controlsWindow: BrowserWindow | null = null
@@ -309,6 +309,7 @@ function bootstrap(): void {
     console: !!controlsWindow && !controlsWindow.isDestroyed() && controlsWindow.isVisible(),
     cursor: mouse.isVisible(),
     pin: browser.window.isAlwaysOnTop(),
+    downloadDir: downloads.directory,
     ua: app.userAgentFallback,
     platform: process.platform,
     languages: 'zh-CN, zh, en',
@@ -323,28 +324,48 @@ function bootstrap(): void {
   ipcMain.handle('settings:open', async () => browser.openSettingsTab())
   ipcMain.handle('internal:open', async (_e, url: string) => browser.openInternalTab(url))
   ipcMain.handle('settings:state', async () => getSettingsState())
-  ipcMain.handle('settings:action', async (_e, action: string, value: boolean) => {
+  ipcMain.handle('settings:pickFolder', async () =>
+    browser.pickDirectory(settingsStore.get().downloadDir || downloads.directory)
+  )
+  ipcMain.handle('settings:action', async (_e, action: string, value: boolean | string): Promise<string> => {
     switch (action) {
-      case 'cursor':
-        mouse.setVisible(value)
+      case 'downloadDir': {
+        try {
+          downloads.setDirectory(String(value ?? ''))
+          settingsStore.set({
+            downloadDir: downloads.directory === downloads.defaultDirectory ? '' : downloads.directory
+          })
+        } catch (error) {
+          return `无法设置下载目录：${String(error)}`
+        }
+        break
+      }
+      case 'cursor': {
+        const enabled = Boolean(value)
+        mouse.setVisible(enabled)
         applyCursorVisibility()
-        settingsStore.set({ cursor: value })
+        settingsStore.set({ cursor: enabled })
         break
-      case 'pin':
-        browser.window.setAlwaysOnTop(value, 'floating')
-        settingsStore.set({ pin: value })
+      }
+      case 'pin': {
+        const enabled = Boolean(value)
+        browser.window.setAlwaysOnTop(enabled, 'floating')
+        settingsStore.set({ pin: enabled })
         break
+      }
       case 'console': {
-        if (value) showControls()
+        const enabled = Boolean(value)
+        if (enabled) showControls()
         else controlsWindow?.close()
-        settingsStore.set({ console: value })
+        settingsStore.set({ console: enabled })
         break
       }
       case 'clear':
         resources.clear(activeWebContentsId())
-        return
+        return ''
     }
     broadcastSettings()
+    return ''
   })
 
   ipcMain.handle('win:pin', async (_e, pinned: boolean) => {

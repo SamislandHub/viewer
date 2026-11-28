@@ -27,7 +27,7 @@ A simple Agent browser. Web pages run in independent `WebContentsView` instances
 - **Bookmarks**: star icon or `Ctrl+D` bookmarks the current page; the bookmarks page can open, delete or clear entries (`data/bookmarks.json`).
 - **History**: visited pages are recorded (latest entry per URL); the history page can open, delete or clear entries (`data/history.json`).
 - **Built-in pages**: `viewer://bookmarks`, `viewer://history` and `viewer://downloads` are separate pages with filtering, open, delete and clear actions.
-- **Downloads**: `will-download` is intercepted; files are saved under `data/downloads` with a self-drawn progress page, open/reveal, cancel, retry and clear actions.
+- **Downloads**: `will-download` is intercepted; files are saved under `data/downloads` by default and the directory can be changed in Settings (empty restores default). A self-drawn progress page offers open/reveal, cancel, retry and clear actions. The Settings "Browse" button reuses the in-app folder picker.
 - **New tab page**: `viewer://newtab` shows recent bookmarks and history with one-click open.
 - **File manager**: `viewer://files` browses drives and quick folders with create, inline rename, copy/cut/paste (including Explorer's system clipboard), delete, copy path, context menu, shortcuts (F2/Delete/Ctrl+C/X/V), directory watching and "open in terminal"; entering an existing local path in the address bar opens it here.
 - **File preview**: `viewer://preview` classifies files by content (magic bytes first, extension as fallback): images render as embedded data URLs (20 MB limit), HTML can switch between preview and source, and text supports UTF-8/UTF-16/GB18030 decoding (2 MB limit). Other types open with the system default program; `file://` entries in history are redirected here.
@@ -57,6 +57,7 @@ The renderer URL comes from `ELECTRON_RENDERER_URL` (set by electron-vite with t
 
 - Press Enter in the address bar to navigate; existing local paths open the built-in file manager / preview (`viewer://files` / `viewer://preview`), and only missing paths fall back to `file://`.
 - Use the left `+` or `Ctrl+T` for a new tab; loading tabs show a spinner and progress bar.
+- Settings toggles the virtual console/cursor, clears resource logs and sets the download directory. Changes apply to new downloads; active downloads keep their original path.
 - Click `▤` in the toolbar to open or close the virtual console (a separate window, hidden and not always-on-top by default).
 - The console controls the virtual mouse (X/Y in page or screen coordinates, button, click count, scroll amount) and keyboard.
 - The resource panel in the console filters requests by type; clicking a row shows details.

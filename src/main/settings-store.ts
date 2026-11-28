@@ -5,9 +5,11 @@ export interface AppSettings {
   console: boolean
   cursor: boolean
   pin: boolean
+  /** Empty means the app's default data/downloads directory. */
+  downloadDir: string
 }
 
-const defaults: AppSettings = { console: false, cursor: false, pin: false }
+const defaults: AppSettings = { console: false, cursor: false, pin: false, downloadDir: '' }
 
 /** Tiny JSON store persisted under data/settings.json. */
 export class SettingsStore {

@@ -261,12 +261,13 @@ const CURSOR_PAGE = 'data:text/html;charset=utf-8,' + encodeURIComponent(`<!doct
   $('ok').onclick=()=>send(selected);
   window.api.onFileChooser(req=>{
     pending={backendNodeId:req.backendNodeId,mode:req.mode,accept:req.accept,directory:req.directory,multiple:req.multiple};
+    const startDir=req.initialDir||$('dir').value;
     const limit=req.accept && req.accept.length?'（已按 accept 过滤）':'';
     const hint=req.directory?'选择文件夹；单击选中，双击进入，确定确认当前目录'
       :(req.multiple||req.mode==='multiple')?'Ctrl/Shift 多选，双击确认'
       :'单击选择，双击确认';
     $('hint').textContent=hint+limit;
-    selected=[]; lastIndex=-1; $('overlay').style.display='flex'; load($('dir').value);
+    selected=[]; lastIndex=-1; $('overlay').style.display='flex'; load(startDir);
   });
   window.api.onFileChooserClose(()=>{ pending=null; $('overlay').style.display='none'; });
 
@@ -365,6 +366,8 @@ export class TabbedBrowser {
   private fileChooserOpen = false
   private screenshotOpen = false
   private readonly chooserByTab = new Map<number, FileChooserRequest>()
+  private dirPickResolve: ((path: string) => void) | null = null
+  private dirPickTabId: number | null = null
 
   onTabsChange?: (tabs: TabInfo[], activeId: number | null, hasPage: boolean) => void
   onLoadEvent?: (message: string) => void
@@ -688,6 +691,24 @@ export class TabbedBrowser {
     }
   }
 
+  /**
+   * Folder selection for internal pages (e.g. the download path in Settings).
+   * Uses the same intercepted chooser as web <input type=file> elements; a
+   * backendNodeId of 0 marks it as an internal request with no DOM node.
+   */
+  pickDirectory(initialDir: string): Promise<string> {
+    this.dirPickResolve?.('')
+    const tabId = this.activeId
+    return new Promise(resolve => {
+      this.dirPickResolve = resolve
+      this.dirPickTabId = tabId
+      this.onFileChooser?.({
+        id: -1, mode: 'single', backendNodeId: 0, accept: [], directory: true,
+        multiple: false, initialDir
+      })
+    })
+  }
+
   /** The cursor view is the single overlay layer; expand it over the page only. */
   showFileChooser(request: FileChooserRequest): void {
     const id = this.activeId
@@ -709,6 +730,12 @@ export class TabbedBrowser {
   /** Restore the file picker belonging to the newly activated tab. */
   syncChooserForActiveTab(): void {
     const id = this.activeId
+    // An internal folder pick is bound to the tab that opened it.
+    if (this.dirPickResolve && this.dirPickTabId !== id) {
+      this.dirPickResolve('')
+      this.dirPickResolve = null
+      this.dirPickTabId = null
+    }
     const request = id === null ? undefined : this.chooserByTab.get(id)
     if (request) {
       this.fileChooserOpen = true
@@ -747,6 +774,14 @@ export class TabbedBrowser {
   }
 
   respondFileChooser(backendNodeId: number, files: string[]): void {
+    if (backendNodeId === 0 && this.dirPickResolve) {
+      const resolve = this.dirPickResolve
+      this.dirPickResolve = null
+      this.dirPickTabId = null
+      this.hideFileChooser()
+      resolve(files[0] || '')
+      return
+    }
     void this.active()?.fileChooserBridge.respond(backendNodeId, files)
     this.hideFileChooser()
   }

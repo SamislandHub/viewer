@@ -95,7 +95,8 @@ export interface BrowserAPI {
   settingsOpen(): Promise<number>
   internalOpen(url: string): Promise<number>
   settingsState(): Promise<any>
-  settingsAction(action: string, value: boolean): Promise<void>
+  settingsAction(action: string, value: boolean | string): Promise<string>
+  settingsPickFolder(): Promise<string>
   onSettingsChanged(cb: (state: any) => void): void
   controlsMinimize(): Promise<void>
   controlsClose(): Promise<void>
@@ -274,6 +275,7 @@ const api: BrowserAPI = {
   internalOpen: url => ipcRenderer.invoke('internal:open', url),
   settingsState: () => ipcRenderer.invoke('settings:state'),
   settingsAction: (action, value) => ipcRenderer.invoke('settings:action', action, value),
+  settingsPickFolder: () => ipcRenderer.invoke('settings:pickFolder'),
   onSettingsChanged: cb => ipcRenderer.on('settings:changed', (_e, state) => cb(state)),
   controlsMinimize: () => ipcRenderer.invoke('controls:minimize'),
   controlsClose: () => ipcRenderer.invoke('controls:close'),
